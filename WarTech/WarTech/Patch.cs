@@ -45,7 +45,7 @@ namespace WarTech {
                         StarSystem system = __instance.StarSystems.Find(x => x.Name.Equals(control.system));
                         if (system.Owner != control.owner) {
                             FactionControl factionControl = control.factionList.Find(x => x.faction == control.owner);
-                            ReflectionHelper.InvokePrivateMethode(system, "set_Def", new object[] { Helper.ChangeOwner(system.Def, factionControl) });
+                            system = Helper.ChangeOwner(system, factionControl);
                         }
                     }
                 }
@@ -74,7 +74,7 @@ namespace WarTech {
                 Random rand = new Random();
                 for (int i = 0; i < Fields.settings.SystemsPerTick; i++) {
 
-                    StarSystem system = __instance.StarSystems[rand.Next(0, __instance.StarSystems.Count + 1)];
+                    StarSystem system = __instance.StarSystems[rand.Next(0, __instance.StarSystems.Count)];
                     PlanetControlState planetState = Fields.stateOfWar.FirstOrDefault(x => x.system.Equals(system.Name));
                     FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == system.Owner);
                     foreach (StarSystem neigbourSystem in __instance.Starmap.GetAvailableNeighborSystem(system)) {
@@ -97,7 +97,7 @@ namespace WarTech {
                         }
                     if (newowner != null) {
                         __instance.StopPlayMode();
-                        ReflectionHelper.InvokePrivateMethode(system, "set_Def", new object[] { Helper.ChangeOwner(system.Def, newowner) });
+                        system = Helper.ChangeOwner(system, newowner);
                         planetState.owner = newowner.faction;
                         PauseNotification.Show("Takeover", newowner.faction + " took " + system.Name + " from " + ownerControl.faction,
                         __instance.GetCrewPortrait(SimGameCrew.Crew_Darius), string.Empty, true, null, "OK", null, "Cancel");

@@ -28,15 +28,15 @@ namespace WarTech {
             }
         }
 
-        public static StarSystemDef ChangeOwner(StarSystemDef def, FactionControl control) {
+        public static StarSystem ChangeOwner(StarSystem system, FactionControl control) {
             try {
-                ReflectionHelper.InvokePrivateMethode(def, "set_Owner", new object[] { control.faction });
-                def.Tags.Remove(GetFactionTag(def.Owner));
-                def.Tags.Add(GetFactionTag(control.faction));
-                def.Tags.Add("planet_other_battlefield");
-                ReflectionHelper.InvokePrivateMethode(def, "set_ContractEmployers", new object[] { getAllies(control.faction) });
-                ReflectionHelper.InvokePrivateMethode(def, "set_ContractTargets", new object[] { getEnemies(control.faction) });
-                return def;
+                system.Tags.Remove(GetFactionTag(system.Owner));
+                system.Tags.Add(GetFactionTag(control.faction));
+                system.Tags.Add("planet_other_battlefield");
+                ReflectionHelper.InvokePrivateMethode(system.Def, "set_Owner", new object[] { control.faction });
+                ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractEmployers", new object[] { getAllies(control.faction) });
+                ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractTargets", new object[] { getEnemies(control.faction) });
+                return system;
             }
             catch (Exception ex) {
                 Logger.LogError(ex);
