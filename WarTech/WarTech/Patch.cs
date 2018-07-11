@@ -66,7 +66,7 @@ namespace WarTech {
                         if (Fields.currentEnemies.ContainsKey(pair.Key)) {
                             Faction[] enemies = Fields.currentEnemies[pair.Key].ToArray();
                             ReflectionHelper.InvokePrivateMethode(pair.Value, "set_Enemies", new object[] { enemies });
-                        } 
+                        }
                     }
                 }
             }
@@ -108,45 +108,26 @@ namespace WarTech {
                     do {
                         system = __instance.StarSystems[rand.Next(0, __instance.StarSystems.Count)];
                     } while (Helper.IsExcluded(system.Owner));
-                    PlanetControlState planetState = Fields.stateOfWar.FirstOrDefault(x => x.system.Equals(system.Name));
-                    FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == system.Owner);
-                    foreach (StarSystem neigbourSystem in __instance.Starmap.GetAvailableNeighborSystem(system)) {
-                        if (neigbourSystem.Owner != system.Owner) {
-                            FactionControl attackerControl = planetState.factionList.FirstOrDefault(x => x.faction == neigbourSystem.Owner);
-                            if (attackerControl == null) {
-                                attackerControl = new FactionControl(0, neigbourSystem.Owner);
-                                planetState.factionList.Add(attackerControl);
-                            }
-                            ownerControl.percentage -= Fields.settings.AttackPercentagePerTick;
-                            attackerControl.percentage += Fields.settings.AttackPercentagePerTick;
-                        }
-                    }
-                    FactionControl newowner = null;
-                    FactionControl lastowner = ownerControl;
-                    foreach (FactionControl attackerControl in planetState.factionList)
-                        if (lastowner.percentage < attackerControl.percentage) {
-                            lastowner = attackerControl;
-                            newowner = attackerControl;
-                        }
-                    if (newowner != null) {
-                        if (!Fields.thisMonthChanges.ContainsKey(system.Name)) {
-                            Fields.thisMonthChanges.Add(system.Name, system.Owner.ToString());
-                        }
-                        system = Helper.ChangeOwner(system, newowner, __instance, true);
-                        planetState.owner = newowner.faction;
-                    }
+                    system = Helper.AttackSystem(system, __instance);
                 }
+
                 int num = (timeLapse <= 0) ? 1 : timeLapse;
                 if ((__instance.DayRemainingInQuarter - num <= 0)) {
                     Helper.RefreshEnemies(__instance);
                     Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)AccessTools.Field(typeof(SimGameState), "factions").GetValue(__instance);
                     foreach (KeyValuePair<Faction, FactionDef> pair in factions) {
-                        ReflectionHelper.InvokePrivateMethode(pair.Value, "set_Enemies", new object[] { Fields.currentEnemies[pair.Key] });
+                        if (Fields.currentEnemies.ContainsKey(pair.Key)) {
+                            Faction[] enemies = Fields.currentEnemies[pair.Key].ToArray();
+                            ReflectionHelper.InvokePrivateMethode(pair.Value, "set_Enemies", new object[] { enemies });
+                        }
                     }
+
                     List<string> changeList = new List<string>();
                     foreach (KeyValuePair<string, string> changes in Fields.thisMonthChanges) {
                         StarSystem changedSystem = __instance.StarSystems.Find(x => x.Name.Equals(changes.Key));
-                        changeList.Add(changedSystem.Owner + " took " + changes.Key + " from " + changes.Value);
+                        if (!changedSystem.Owner.ToString().Equals(changes.Value)) {
+                            changeList.Add(changedSystem.Owner + " took " + changes.Key + " from " + changes.Value);
+                        }
                     }
                     if (changeList.Count == 0) {
                         changeList.Add("No changes this month");

@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace WarTech {
 
@@ -23,6 +24,55 @@ namespace WarTech {
                     string json = r.ReadToEnd();
                     return JsonConvert.DeserializeObject<Settings>(json);
                 }
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return null;
+            }
+        }
+
+        public static StarSystem AttackSystem(StarSystem system, SimGameState Sim) {
+            try {
+                PlanetControlState planetState = Fields.stateOfWar.FirstOrDefault(x => x.system.Equals(system.Name));
+                FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == system.Owner);
+                foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
+                    if (neigbourSystem.Owner != system.Owner) {
+                        FactionControl attackerControl = planetState.factionList.FirstOrDefault(x => x.faction == neigbourSystem.Owner);
+                        if (attackerControl == null) {
+                            attackerControl = new FactionControl(0, neigbourSystem.Owner);
+                            planetState.factionList.Add(attackerControl);
+                        }
+                        ownerControl.percentage -= Fields.settings.AttackPercentagePerTick;
+                        attackerControl.percentage += Fields.settings.AttackPercentagePerTick;
+                    }
+                }
+                FactionControl newowner = null;
+                FactionControl lastowner = ownerControl;
+                foreach (FactionControl attackerControl in planetState.factionList)
+                    if (lastowner.percentage < attackerControl.percentage) {
+                        lastowner = attackerControl;
+                        newowner = attackerControl;
+                    }
+                if (newowner != null) {
+                    if (!Fields.thisMonthChanges.ContainsKey(system.Name)) {
+                        Fields.thisMonthChanges.Add(system.Name, system.Owner.ToString());
+                    }
+                    if (newowner.percentage >= 50) {
+                        system = Helper.ChangeOwner(system, newowner, Sim, true);
+                        planetState.owner = newowner.faction;
+                    }
+                    else {
+                        FactionControl localcontrol = planetState.factionList.FirstOrDefault(x => x.faction == Faction.Locals);
+                        if (localcontrol == null) {
+                            localcontrol = new FactionControl(0, Faction.Locals);
+                            planetState.factionList.Add(localcontrol);
+                        }
+                        system = Helper.ChangeOwner(system, localcontrol, Sim, true);
+                        planetState.owner = Faction.Locals;
+                    }
+
+                }
+                return system;
             }
             catch (Exception ex) {
                 Logger.LogError(ex);
@@ -93,8 +143,12 @@ namespace WarTech {
         public static StarSystem ChangeOwner(StarSystem system, FactionControl control, SimGameState Sim, bool battle) {
             try {
                 if (battle) {
-                    system.Tags.Remove(GetFactionTag(system.Owner));
-                    system.Tags.Add(GetFactionTag(control.faction));
+                    string factiontag = GetFactionTag(system.Owner);
+                    if (!string.IsNullOrEmpty(factiontag))
+                        system.Tags.Remove(factiontag);
+                    factiontag = GetFactionTag(control.faction);
+                    if (!string.IsNullOrEmpty(factiontag))
+                        system.Tags.Add(factiontag);
                     system.Tags.Add("planet_other_battlefield");
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_Owner", new object[] { control.faction });
                 }
@@ -143,7 +197,8 @@ namespace WarTech {
                             employees.Add(neigbourSystem.Owner);
                         }
                     }
-                } else {
+                }
+                else {
                     foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
                         employees.Add(pair.Key);
                     }
