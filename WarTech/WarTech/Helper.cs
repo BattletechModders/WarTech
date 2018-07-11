@@ -34,32 +34,59 @@ namespace WarTech {
             try {
                 Fields.currentEnemies = new Dictionary<Faction, List<Faction>>();
                 foreach (StarSystem system in Sim.StarSystems) {
-                    foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                        if (system.Owner != neigbourSystem.Owner) {
-                            List<Faction> enemies;
-                            if (Fields.currentEnemies.ContainsKey(system.Owner)) {
-                                enemies = Fields.currentEnemies[system.Owner];
-                            }
-                            else {
-                                enemies = new List<Faction>();
-                            }
+                    if (!IsExcluded(system.Owner)) {
+                        foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
+                            if (system.Owner != neigbourSystem.Owner) {
+                                List<Faction> enemies;
+                                if (Fields.currentEnemies.ContainsKey(system.Owner)) {
+                                    enemies = Fields.currentEnemies[system.Owner];
+                                }
+                                else {
+                                    enemies = new List<Faction>();
+                                }
 
-                            if (!enemies.Contains(neigbourSystem.Owner)) {
-                                enemies.Add(neigbourSystem.Owner);
-                            }
+                                if (!enemies.Contains(neigbourSystem.Owner)) {
+                                    enemies.Add(neigbourSystem.Owner);
+                                }
 
-                            if (Fields.currentEnemies.ContainsKey(system.Owner)) {
-                                Fields.currentEnemies[system.Owner] = enemies;
+                                if (Fields.currentEnemies.ContainsKey(system.Owner)) {
+                                    Fields.currentEnemies[system.Owner] = enemies;
+                                }
+                                else {
+                                    Fields.currentEnemies.Add(system.Owner, enemies);
+                                }
                             }
-                            else {
-                                Fields.currentEnemies.Add(system.Owner, enemies);
+                        }
+                    }
+                    else {
+                        if (!Fields.currentEnemies.ContainsKey(system.Owner)) {
+                            List<Faction> enemies = new List<Faction>();
+                            foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
+                                if (pair.Key != system.Owner) {
+                                    enemies.Add(pair.Key);
+                                }
                             }
+                            Fields.currentEnemies.Add(system.Owner, enemies);
                         }
                     }
                 }
             }
             catch (Exception ex) {
                 Logger.LogError(ex);
+            }
+        }
+
+        public static bool IsExcluded(Faction faction) {
+            try {
+                bool result = false;
+                if (Fields.settings.excludedFactionNames.Contains(faction.ToString())) {
+                    result = true;
+                }
+                return result;
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return false;
             }
         }
 
@@ -71,9 +98,10 @@ namespace WarTech {
                     system.Tags.Add("planet_other_battlefield");
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_Owner", new object[] { control.faction });
                 }
-                if(IsBorder(system, Sim)) {
+                if (IsBorder(system, Sim)) {
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { 2 });
-                } else {
+                }
+                else {
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { 0 });
                 }
                 ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractEmployers", new object[] { GetEmployees(system, Sim) });
@@ -106,11 +134,18 @@ namespace WarTech {
         public static List<Faction> GetEmployees(StarSystem system, SimGameState Sim) {
             try {
                 List<Faction> employees = new List<Faction>();
-                employees.Add(Faction.Locals);
-                employees.Add(system.Owner);
-                foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                    if (system.Owner != neigbourSystem.Owner && !employees.Contains(neigbourSystem.Owner)) {
-                        employees.Add(neigbourSystem.Owner);
+
+                if (!IsExcluded(system.Owner)) {
+                    employees.Add(Faction.Locals);
+                    employees.Add(system.Owner);
+                    foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
+                        if (system.Owner != neigbourSystem.Owner && !employees.Contains(neigbourSystem.Owner)) {
+                            employees.Add(neigbourSystem.Owner);
+                        }
+                    }
+                } else {
+                    foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
+                        employees.Add(pair.Key);
                     }
                 }
                 return employees;
@@ -124,12 +159,19 @@ namespace WarTech {
         public static List<Faction> GetTargets(StarSystem system, SimGameState Sim) {
             try {
                 List<Faction> targets = new List<Faction>();
-                targets.Add(Faction.Locals);
-                targets.Add(Faction.AuriganPirates);
-                targets.Add(system.Owner);
-                foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                    if (system.Owner != neigbourSystem.Owner && !targets.Contains(neigbourSystem.Owner)) {
-                        targets.Add(neigbourSystem.Owner);
+                if (!IsExcluded(system.Owner)) {
+                    targets.Add(Faction.Locals);
+                    targets.Add(Faction.AuriganPirates);
+                    targets.Add(system.Owner);
+                    foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
+                        if (system.Owner != neigbourSystem.Owner && !targets.Contains(neigbourSystem.Owner)) {
+                            targets.Add(neigbourSystem.Owner);
+                        }
+                    }
+                }
+                else {
+                    foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
+                        targets.Add(pair.Key);
                     }
                 }
                 return targets;

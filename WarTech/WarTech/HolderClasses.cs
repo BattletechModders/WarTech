@@ -5,6 +5,7 @@ namespace WarTech {
     public class Settings {
         public int AttackPercentagePerTick = 1;
         public int SystemsPerTick = 100;
+        public List<string> excludedFactionNames = new List<string>();
     }
     
     public static class Fields {

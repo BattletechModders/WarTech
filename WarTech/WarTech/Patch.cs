@@ -66,9 +66,7 @@ namespace WarTech {
                         if (Fields.currentEnemies.ContainsKey(pair.Key)) {
                             Faction[] enemies = Fields.currentEnemies[pair.Key].ToArray();
                             ReflectionHelper.InvokePrivateMethode(pair.Value, "set_Enemies", new object[] { enemies });
-                        } else {
-                            Logger.LogLine("Faction not present: " + pair.Key);
-                        }
+                        } 
                     }
                 }
             }
@@ -94,8 +92,6 @@ namespace WarTech {
     public static class SimGameState_OnDayPassed_Patch {
         static void Prefix(SimGameState __instance, int timeLapse) {
             try {
-                Fields.settings = Helper.LoadSettings();
-
                 if (Fields.stateOfWar == null) {
                     //first init
                     Fields.stateOfWar = new List<PlanetControlState>();
@@ -108,8 +104,10 @@ namespace WarTech {
 
                 Random rand = new Random();
                 for (int i = 0; i < Fields.settings.SystemsPerTick; i++) {
-
-                    StarSystem system = __instance.StarSystems[rand.Next(0, __instance.StarSystems.Count)];
+                    StarSystem system;
+                    do {
+                        system = __instance.StarSystems[rand.Next(0, __instance.StarSystems.Count)];
+                    } while (Helper.IsExcluded(system.Owner));
                     PlanetControlState planetState = Fields.stateOfWar.FirstOrDefault(x => x.system.Equals(system.Name));
                     FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == system.Owner);
                     foreach (StarSystem neigbourSystem in __instance.Starmap.GetAvailableNeighborSystem(system)) {
