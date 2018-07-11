@@ -71,6 +71,11 @@ namespace WarTech {
                     system.Tags.Add("planet_other_battlefield");
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_Owner", new object[] { control.faction });
                 }
+                if(IsBorder(system, Sim)) {
+                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { 2 });
+                } else {
+                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { 0 });
+                }
                 ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractEmployers", new object[] { GetEmployees(system, Sim) });
                 ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractTargets", new object[] { GetTargets(system, Sim) });
                 return system;
@@ -78,6 +83,23 @@ namespace WarTech {
             catch (Exception ex) {
                 Logger.LogError(ex);
                 return null;
+            }
+        }
+
+        public static bool IsBorder(StarSystem system, SimGameState Sim) {
+            try {
+                bool result = false;
+                foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
+                    if (system.Owner != neigbourSystem.Owner) {
+                        result = true;
+                        break;
+                    }
+                }
+                return result;
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return false;
             }
         }
 

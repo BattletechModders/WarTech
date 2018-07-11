@@ -63,7 +63,12 @@ namespace WarTech {
                     Helper.RefreshEnemies(simGame);
                     Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)AccessTools.Field(typeof(SimGameState), "factions").GetValue(simGame);
                     foreach (KeyValuePair<Faction, FactionDef> pair in factions) {
-                        ReflectionHelper.InvokePrivateMethode(pair.Value, "set_Enemies", new object[] { Fields.currentEnemies[pair.Key] });
+                        if (Fields.currentEnemies.ContainsKey(pair.Key)) {
+                            Faction[] enemies = Fields.currentEnemies[pair.Key].ToArray();
+                            ReflectionHelper.InvokePrivateMethode(pair.Value, "set_Enemies", new object[] { enemies });
+                        } else {
+                            Logger.LogLine("Faction not present: " + pair.Key);
+                        }
                     }
                 }
             }
