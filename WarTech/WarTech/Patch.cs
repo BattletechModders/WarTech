@@ -6,7 +6,6 @@ using Harmony;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using static BattleTech.StarSystemDef;
 
 namespace WarTech {
 
@@ -36,17 +35,35 @@ namespace WarTech {
         }
     }
 
-    [HarmonyPatch(typeof(SimGameState), "Rehydrate")]
-    public static class SimGameState_Rehydrate_Patch {
-        static void Postfix(SimGameState __instance, GameInstanceSave gameInstanceSave) {
+    [HarmonyPatch(typeof(Starmap), "PopulateMap", new Type[] { typeof(SimGameState) })]
+    public static class Starmap_PopulateMap_Patch {
+
+        static void Postfix(SimGameState simGame) {
             try {
-                if (Fields.stateOfWar != null) {
-                    foreach (PlanetControlState control in Fields.stateOfWar) {
-                        StarSystem system = __instance.StarSystems.Find(x => x.Name.Equals(control.system));
-                        if (system.Owner != control.owner) {
-                            FactionControl factionControl = control.factionList.Find(x => x.faction == control.owner);
-                            system = Helper.ChangeOwner(system, factionControl);
+                Logger.LogLine("Populate");
+                foreach (StarSystem system in simGame.StarSystems) {
+                    bool battle = false;
+                    FactionControl factionControl = null;
+                    if (Fields.stateOfWar != null) {
+                        foreach (PlanetControlState control in Fields.stateOfWar) {
+                            if (control.system.Equals(system.Name)) {
+                                if (system.Owner != control.owner) {
+                                    battle = true;
+                                    factionControl = control.factionList.Find(x => x.faction == control.owner);
+                                    break;
+                                }
+                            }
                         }
+                    }
+                    StarSystem system2 = simGame.StarSystems.Find(x => x.Name.Equals(system.Name));
+                    system2 = Helper.ChangeOwner(system, factionControl, simGame, battle);
+                }
+
+                if (Fields.currentEnemies == null) {
+                    Helper.RefreshEnemies(simGame);
+                    Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)AccessTools.Field(typeof(SimGameState), "factions").GetValue(simGame);
+                    foreach (KeyValuePair<Faction, FactionDef> pair in factions) {
+                        ReflectionHelper.InvokePrivateMethode(pair.Value, "set_Enemies", new object[] { Fields.currentEnemies[pair.Key] });
                     }
                 }
             }
@@ -56,6 +73,18 @@ namespace WarTech {
         }
     }
 
+    /*[HarmonyPatch(typeof(SimGameState), "Rehydrate")]
+    public static class SimGameState_Rehydrate_Patch {
+        static void Postfix(SimGameState __instance, GameInstanceSave gameInstanceSave) {
+            try {
+                
+            }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
+        }
+    }*/
+
     [HarmonyPatch(typeof(SimGameState), "OnDayPassed")]
     public static class SimGameState_OnDayPassed_Patch {
         static void Prefix(SimGameState __instance, int timeLapse) {
@@ -63,6 +92,7 @@ namespace WarTech {
                 Fields.settings = Helper.LoadSettings();
 
                 if (Fields.stateOfWar == null) {
+                    //first init
                     Fields.stateOfWar = new List<PlanetControlState>();
                     foreach (StarSystem system in __instance.StarSystems) {
                         List<FactionControl> factionList = new List<FactionControl>();
@@ -99,12 +129,17 @@ namespace WarTech {
                         if (!Fields.thisMonthChanges.ContainsKey(system.Name)) {
                             Fields.thisMonthChanges.Add(system.Name, system.Owner.ToString());
                         }
-                        system = Helper.ChangeOwner(system, newowner);
+                        system = Helper.ChangeOwner(system, newowner, __instance, true);
                         planetState.owner = newowner.faction;
                     }
                 }
                 int num = (timeLapse <= 0) ? 1 : timeLapse;
                 if ((__instance.DayRemainingInQuarter - num <= 0)) {
+                    Helper.RefreshEnemies(__instance);
+                    Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)AccessTools.Field(typeof(SimGameState), "factions").GetValue(__instance);
+                    foreach (KeyValuePair<Faction, FactionDef> pair in factions) {
+                        ReflectionHelper.InvokePrivateMethode(pair.Value, "set_Enemies", new object[] { Fields.currentEnemies[pair.Key] });
+                    }
                     List<string> changeList = new List<string>();
                     foreach (KeyValuePair<string, string> changes in Fields.thisMonthChanges) {
                         StarSystem changedSystem = __instance.StarSystems.Find(x => x.Name.Equals(changes.Key));
@@ -116,7 +151,7 @@ namespace WarTech {
                     Fields.thisMonthChanges = new Dictionary<string, string>();
                     __instance.StopPlayMode();
                     SimGameInterruptManager interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(__instance);
-                    interruptQueue.QueuePauseNotification("Monthly War Report", string.Join("\n ", changeList.ToArray()), __instance.GetCrewPortrait(SimGameCrew.Crew_Sumire), string.Empty, null, "Understood", null, string.Empty);                
+                    interruptQueue.QueuePauseNotification("Monthly War Report", string.Join("\n ", changeList.ToArray()), __instance.GetCrewPortrait(SimGameCrew.Crew_Sumire), string.Empty, null, "Understood", null, string.Empty);
                 }
             }
             catch (Exception e) {

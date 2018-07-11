@@ -10,6 +10,7 @@ namespace WarTech {
     public static class Fields {
        public static List<PlanetControlState> stateOfWar = null;
         public static Dictionary<string, string> thisMonthChanges = new Dictionary<string, string>();
+        public static Dictionary<Faction, List<Faction>> currentEnemies = null;
         public static Settings settings;
     }
 
