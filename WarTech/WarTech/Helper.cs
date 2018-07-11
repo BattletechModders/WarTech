@@ -1,4 +1,5 @@
 ﻿using BattleTech;
+using BattleTech.Data;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -33,16 +34,18 @@ namespace WarTech {
 
         public static StarSystem AttackSystem(StarSystem system, SimGameState Sim) {
             try {
+
                 PlanetControlState planetState = Fields.stateOfWar.FirstOrDefault(x => x.system.Equals(system.Name));
                 FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == system.Owner);
                 foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                    if (neigbourSystem.Owner != system.Owner) {
+                    if (neigbourSystem.Owner != system.Owner && !IsExcluded(neigbourSystem.Owner)) {
+                        FactionControl highestControl = planetState.factionList.FindAll(x => x.faction != neigbourSystem.Owner).OrderByDescending(i => i.percentage).First();
                         FactionControl attackerControl = planetState.factionList.FirstOrDefault(x => x.faction == neigbourSystem.Owner);
                         if (attackerControl == null) {
                             attackerControl = new FactionControl(0, neigbourSystem.Owner);
                             planetState.factionList.Add(attackerControl);
                         }
-                        ownerControl.percentage -= Fields.settings.AttackPercentagePerTick;
+                        highestControl.percentage -= Fields.settings.AttackPercentagePerTick;
                         attackerControl.percentage += Fields.settings.AttackPercentagePerTick;
                     }
                 }
@@ -55,9 +58,9 @@ namespace WarTech {
                     }
                 if (newowner != null) {
                     if (!Fields.thisMonthChanges.ContainsKey(system.Name)) {
-                        Fields.thisMonthChanges.Add(system.Name, system.Owner.ToString());
+                        Fields.thisMonthChanges.Add(system.Name, Helper.GetFactionName(system.Owner, Sim.DataManager));
                     }
-                    if (newowner.percentage >= 50) {
+                    if (newowner.percentage >= Fields.settings.PercentageForControl) {
                         system = Helper.ChangeOwner(system, newowner, Sim, true);
                         planetState.owner = newowner.faction;
                     }
@@ -426,6 +429,16 @@ namespace WarTech {
                         return "";
 
                 }
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return null;
+            }
+        }
+
+        public static string GetFactionName(Faction faction, DataManager manager) {
+            try {
+                return FactionDef.GetFactionDefByEnum(manager, faction).Name;
             }
             catch (Exception ex) {
                 Logger.LogError(ex);

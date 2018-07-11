@@ -125,8 +125,8 @@ namespace WarTech {
                     List<string> changeList = new List<string>();
                     foreach (KeyValuePair<string, string> changes in Fields.thisMonthChanges) {
                         StarSystem changedSystem = __instance.StarSystems.Find(x => x.Name.Equals(changes.Key));
-                        if (!changedSystem.Owner.ToString().Equals(changes.Value)) {
-                            changeList.Add(changedSystem.Owner + " took " + changes.Key + " from " + changes.Value);
+                        if (!Helper.GetFactionName(changedSystem.Owner, __instance.DataManager).Equals(changes.Value)) {
+                            changeList.Add(Helper.GetFactionName(changedSystem.Owner,__instance.DataManager) + " took " + changes.Key + " from " + changes.Value);
                         }
                     }
                     if (changeList.Count == 0) {
