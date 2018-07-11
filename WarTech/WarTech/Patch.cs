@@ -96,12 +96,27 @@ namespace WarTech {
                             newowner = attackerControl;
                         }
                     if (newowner != null) {
-                        __instance.StopPlayMode();
+                        if (!Fields.thisMonthChanges.ContainsKey(system.Name)) {
+                            Fields.thisMonthChanges.Add(system.Name, system.Owner.ToString());
+                        }
                         system = Helper.ChangeOwner(system, newowner);
                         planetState.owner = newowner.faction;
-                        PauseNotification.Show("Takeover", newowner.faction + " took " + system.Name + " from " + ownerControl.faction,
-                        __instance.GetCrewPortrait(SimGameCrew.Crew_Darius), string.Empty, true, null, "OK", null, "Cancel");
                     }
+                }
+                int num = (timeLapse <= 0) ? 1 : timeLapse;
+                if ((__instance.DayRemainingInQuarter - num <= 0)) {
+                    List<string> changeList = new List<string>();
+                    foreach (KeyValuePair<string, string> changes in Fields.thisMonthChanges) {
+                        StarSystem changedSystem = __instance.StarSystems.Find(x => x.Name.Equals(changes.Key));
+                        changeList.Add(changedSystem.Owner + " took " + changes.Key + " from " + changes.Value);
+                    }
+                    if (changeList.Count == 0) {
+                        changeList.Add("No changes this month");
+                    }
+                    Fields.thisMonthChanges = new Dictionary<string, string>();
+                    __instance.StopPlayMode();
+                    SimGameInterruptManager interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(__instance);
+                    interruptQueue.QueuePauseNotification("Monthly War Report", string.Join("\n ", changeList.ToArray()), __instance.GetCrewPortrait(SimGameCrew.Crew_Sumire), string.Empty, null, "Understood", null, string.Empty);                
                 }
             }
             catch (Exception e) {

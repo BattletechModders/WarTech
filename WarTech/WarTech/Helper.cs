@@ -8,9 +8,11 @@ namespace WarTech {
 
     public class SaveFields {
         public List<PlanetControlState> stateOfWar = null;
+        public Dictionary<string, string> thisMonthChanges = new Dictionary<string, string>();
 
-        public SaveFields(List<PlanetControlState> stateOfWar) {
+        public SaveFields(List<PlanetControlState> stateOfWar, Dictionary<string, string> thisMonthChanges) {
             this.stateOfWar = stateOfWar;
+            this.thisMonthChanges = thisMonthChanges;
         }
     }
 
@@ -248,7 +250,7 @@ namespace WarTech {
                 string filePath = baseDirectory + $"/ModSaves/WarTech/" + instanceGUID + "-" + unixTimestamp + ".json";
                 (new FileInfo(filePath)).Directory.Create();
                 using (StreamWriter writer = new StreamWriter(filePath, true)) {
-                    SaveFields fields = new SaveFields(Fields.stateOfWar);
+                    SaveFields fields = new SaveFields(Fields.stateOfWar, Fields.thisMonthChanges);
                     string json = JsonConvert.SerializeObject(fields);
                     writer.Write(json);
                 }
@@ -268,6 +270,7 @@ namespace WarTech {
                         string json = r.ReadToEnd();
                         SaveFields save = JsonConvert.DeserializeObject<SaveFields>(json);
                         Fields.stateOfWar = save.stateOfWar;
+                        Fields.thisMonthChanges = save.thisMonthChanges;
                     }
                 }
             }
