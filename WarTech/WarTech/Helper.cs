@@ -269,9 +269,9 @@ namespace WarTech {
         public static bool IsBorder(StarSystem system, SimGameState Sim) {
             try {
                 bool result = false;
-                if (Sim.Starmap != null) {
+                if (Sim.Starmap != null && !IsExcluded(system.Owner)) {
                     foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                        if (system.Owner != neigbourSystem.Owner) {
+                        if (system.Owner != neigbourSystem.Owner && !IsExcluded(neigbourSystem.Owner)) {
                             result = true;
                             break;
                         }
