@@ -3,11 +3,36 @@ using BattleTech.Save;
 using BattleTech.Save.SaveGameStructure;
 using BattleTech.UI;
 using Harmony;
+using HBS;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace WarTech {
+
+    [HarmonyPatch(typeof(Contract), "CompleteContract")]
+    public static class Contract_CompleteContract_Patch {
+
+        static void Postfix(Contract __instance, MissionResult result) {
+            try {
+                GameInstance game = LazySingletonBehavior<UnityGameInstance>.Instance.Game;
+                StarSystem system = game.Simulation.StarSystems.Find(x => x.ID == __instance.TargetSystem);
+                Faction oldOwner = system.Def.Owner;
+                if(result == MissionResult.Victory) {
+                    system = Helper.PlayerAttackSystem(system, game.Simulation, __instance.Override.employerTeam.faction, __instance.Override.targetTeam.faction, true);
+                } else {
+                    system = Helper.PlayerAttackSystem(system, game.Simulation, __instance.Override.employerTeam.faction, __instance.Override.targetTeam.faction, false);
+                }
+                if (system.Def.Owner != oldOwner) {
+                    SimGameInterruptManager interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(game.Simulation);
+                    interruptQueue.QueueGenericPopup_NonImmediate("Conquered", Helper.GetFactionName(system.Def.Owner, game.Simulation.DataManager) + " took " + system.Name + " from " + Helper.GetFactionName(oldOwner, game.Simulation.DataManager), true, null);
+                }
+            }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
+        }
+    }
 
     [HarmonyPatch(typeof(GameInstanceSave))]
     [HarmonyPatch(new Type[] { typeof(GameInstance), typeof(SaveReason) })]
@@ -40,7 +65,16 @@ namespace WarTech {
 
         static void Postfix(SimGameState simGame) {
             try {
-                Logger.LogLine("Populate");
+                if (Fields.stateOfWar == null) {
+                    //first init
+                    Fields.stateOfWar = new List<PlanetControlState>();
+                    foreach (StarSystem system in simGame.StarSystems) {
+                        List<FactionControl> factionList = new List<FactionControl>();
+                        factionList.Add(new FactionControl(100, system.Owner));
+                        Fields.stateOfWar.Add(new PlanetControlState(factionList, system.Name, system.Owner));
+                    }
+                }
+
                 foreach (StarSystem system in simGame.StarSystems) {
                     bool battle = false;
                     FactionControl factionControl = null;
@@ -57,6 +91,7 @@ namespace WarTech {
                     }
                     StarSystem system2 = simGame.StarSystems.Find(x => x.Name.Equals(system.Name));
                     system2 = Helper.ChangeOwner(system, factionControl, simGame, battle);
+                    system2 = Helper.ChangeWarDescription(system2, simGame);
                 }
 
                 if (Fields.currentEnemies == null) {
@@ -92,16 +127,6 @@ namespace WarTech {
     public static class SimGameState_OnDayPassed_Patch {
         static void Prefix(SimGameState __instance, int timeLapse) {
             try {
-                if (Fields.stateOfWar == null) {
-                    //first init
-                    Fields.stateOfWar = new List<PlanetControlState>();
-                    foreach (StarSystem system in __instance.StarSystems) {
-                        List<FactionControl> factionList = new List<FactionControl>();
-                        factionList.Add(new FactionControl(100, system.Owner));
-                        Fields.stateOfWar.Add(new PlanetControlState(factionList, system.Name, system.Owner));
-                    }
-                }
-
                 Random rand = new Random();
                 for (int i = 0; i < Fields.settings.SystemsPerTick; i++) {
                     StarSystem system;
@@ -135,7 +160,7 @@ namespace WarTech {
                     Fields.thisMonthChanges = new Dictionary<string, string>();
                     __instance.StopPlayMode();
                     SimGameInterruptManager interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(__instance);
-                    interruptQueue.QueuePauseNotification("Monthly War Report", string.Join("\n ", changeList.ToArray()), __instance.GetCrewPortrait(SimGameCrew.Crew_Sumire), string.Empty, null, "Understood", null, string.Empty);
+                    interruptQueue.QueuePauseNotification("Monthly War Report", string.Join("\n ", changeList.ToArray()) + "\n", __instance.GetCrewPortrait(SimGameCrew.Crew_Sumire), string.Empty, null, "Understood", null, string.Empty);
                 }
             }
             catch (Exception e) {

@@ -39,16 +39,90 @@ namespace WarTech {
                 FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == system.Owner);
                 foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
                     if (neigbourSystem.Owner != system.Owner && !IsExcluded(neigbourSystem.Owner)) {
-                        FactionControl highestControl = planetState.factionList.FindAll(x => x.faction != neigbourSystem.Owner).OrderByDescending(i => i.percentage).First();
-                        FactionControl attackerControl = planetState.factionList.FirstOrDefault(x => x.faction == neigbourSystem.Owner);
-                        if (attackerControl == null) {
-                            attackerControl = new FactionControl(0, neigbourSystem.Owner);
-                            planetState.factionList.Add(attackerControl);
-                        }
-                        highestControl.percentage -= Fields.settings.AttackPercentagePerTick;
-                        attackerControl.percentage += Fields.settings.AttackPercentagePerTick;
+                        planetState = CalculateActualAttacks(system, planetState, neigbourSystem.Owner, system.Owner, false);
                     }
                 }
+                return EvaluateOwnerChange(ownerControl, planetState, system, Sim);
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return null;
+            }
+        }
+
+        public static PlanetControlState CalculateActualAttacks(StarSystem system, PlanetControlState planetState, Faction benefactor, Faction initialTarget, bool player) {
+            try {
+
+                int percentageLeft;
+                if (player) {
+                    percentageLeft = Fields.settings.AttackPercentagePerPlayerMission;
+                }
+                else {
+                    percentageLeft = Fields.settings.AttackPercentagePerTick;
+                }
+                do {
+                    FactionControl highestControl = planetState.factionList.FirstOrDefault(x => x.faction == initialTarget);
+                    if (highestControl.percentage == 0) {
+                        highestControl = planetState.factionList.FindAll(x => x.faction != benefactor).OrderByDescending(i => i.percentage).First();
+                    }
+                    FactionControl attackerControl = planetState.factionList.FirstOrDefault(x => x.faction == benefactor);
+                    if (attackerControl == null) {
+                        attackerControl = new FactionControl(0, benefactor);
+                        planetState.factionList.Add(attackerControl);
+                    }
+                    if (attackerControl.percentage == 100) {
+                        break;
+                    }
+                    int realChanges = percentageLeft;
+                    if(highestControl.percentage - realChanges < 0) {
+                        int leftover = Math.Abs(highestControl.percentage - realChanges);
+                        realChanges -= leftover;
+                    }
+                    if (attackerControl.percentage + realChanges > 100) {
+                        int leftover = attackerControl.percentage + realChanges - 100;
+                        realChanges -= leftover;
+                    }
+                    percentageLeft -= realChanges;
+                    highestControl.percentage -= realChanges;
+                    attackerControl.percentage += realChanges;
+                } while (percentageLeft > 0 );
+                return planetState;
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return planetState;
+            }
+        }
+
+        public static StarSystem PlayerAttackSystem(StarSystem system, SimGameState Sim, Faction employee, Faction target, bool win) {
+            try {
+                PlanetControlState planetState = Fields.stateOfWar.FirstOrDefault(x => x.system.Equals(system.Name));
+                FactionControl employeeControl = planetState.factionList.FirstOrDefault(x => x.faction == employee);
+                FactionControl targetControl = planetState.factionList.FirstOrDefault(x => x.faction == target);
+                FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == system.Owner);
+                if (employeeControl == null) {
+                    employeeControl = new FactionControl(0, employee);
+                    planetState.factionList.Add(employeeControl);
+                }
+                if (targetControl == null) {
+                    targetControl = new FactionControl(0, target);
+                    planetState.factionList.Add(targetControl);
+                }
+                if (win) {
+                    planetState = CalculateActualAttacks(system, planetState, employee, target, true);
+                } else {
+                    planetState = CalculateActualAttacks(system, planetState, target, employee, true);
+                }
+                return EvaluateOwnerChange(ownerControl, planetState, system, Sim);
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return null;
+            }
+        }
+
+        public static StarSystem EvaluateOwnerChange(FactionControl ownerControl, PlanetControlState planetState, StarSystem system, SimGameState Sim) {
+            try {
                 FactionControl newowner = null;
                 FactionControl lastowner = ownerControl;
                 foreach (FactionControl attackerControl in planetState.factionList)
@@ -75,7 +149,7 @@ namespace WarTech {
                     }
 
                 }
-                return system;
+                return Helper.ChangeWarDescription(system, Sim);
             }
             catch (Exception ex) {
                 Logger.LogError(ex);
@@ -155,11 +229,14 @@ namespace WarTech {
                     system.Tags.Add("planet_other_battlefield");
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_Owner", new object[] { control.faction });
                 }
-                if (IsBorder(system, Sim)) {
+                if (IsBorder(system, Sim) && Sim.Starmap != null) {
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { 2 });
+                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_UseMaxContractOverride", new object[] { true });
+                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_MaxContractOverride", new object[] { Sim.Constants.Story.MaxContractsPerSystem + Sim.Constants.Story.MaxContractsPerSystem/2 });
                 }
                 else {
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { 0 });
+                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_UseMaxContractOverride", new object[] { false });
                 }
                 ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractEmployers", new object[] { GetEmployees(system, Sim) });
                 ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractTargets", new object[] { GetTargets(system, Sim) });
@@ -171,13 +248,33 @@ namespace WarTech {
             }
         }
 
+        public static StarSystem ChangeWarDescription(StarSystem system, SimGameState Sim) {
+            try {
+                List<string> factionList = new List<string>();
+                factionList.Add("Current Control:");
+                foreach (FactionControl fc in Fields.stateOfWar.Find(x => x.system.Equals(system.Name)).factionList.OrderByDescending(x => x.percentage)) {
+                    if (fc.percentage != 0) {
+                        factionList.Add(Helper.GetFactionName(fc.faction, Sim.DataManager) + ": " + fc.percentage + "%");
+                    }
+                }
+                ReflectionHelper.InvokePrivateMethode(system.Def.Description, "set_Details", new object[]{ string.Join("\n", factionList.ToArray())});
+                return system;
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return null;
+            }
+        }
+
         public static bool IsBorder(StarSystem system, SimGameState Sim) {
             try {
                 bool result = false;
-                foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                    if (system.Owner != neigbourSystem.Owner) {
-                        result = true;
-                        break;
+                if (Sim.Starmap != null) {
+                    foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
+                        if (system.Owner != neigbourSystem.Owner) {
+                            result = true;
+                            break;
+                        }
                     }
                 }
                 return result;
@@ -192,7 +289,7 @@ namespace WarTech {
             try {
                 List<Faction> employees = new List<Faction>();
 
-                if (!IsExcluded(system.Owner)) {
+                if (!IsExcluded(system.Owner) && Sim.Starmap != null) {
                     employees.Add(Faction.Locals);
                     employees.Add(system.Owner);
                     foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
@@ -217,7 +314,7 @@ namespace WarTech {
         public static List<Faction> GetTargets(StarSystem system, SimGameState Sim) {
             try {
                 List<Faction> targets = new List<Faction>();
-                if (!IsExcluded(system.Owner)) {
+                if (!IsExcluded(system.Owner) && Sim.Starmap != null) {
                     targets.Add(Faction.Locals);
                     targets.Add(Faction.AuriganPirates);
                     targets.Add(system.Owner);
@@ -239,156 +336,6 @@ namespace WarTech {
                 return null;
             }
         }
-        /*public static List<Faction> getAllies(Faction faction) {
-            switch (faction) {
-                case Faction.Betrayers:
-                    return new List<Faction>() { Faction.Betrayers, Faction.Locals, Faction.ComStar };
-                case Faction.AuriganDirectorate:
-                    return new List<Faction>() { Faction.AuriganDirectorate, Faction.Locals };
-                case Faction.AuriganMercenaries:
-                    return new List<Faction>() { Faction.AuriganMercenaries, Faction.Locals };
-                case Faction.AuriganPirates:
-                    return new List<Faction>() { Faction.AuriganPirates, Faction.Locals };
-                case Faction.AuriganRestoration:
-                    return new List<Faction>() { Faction.AuriganRestoration, Faction.Locals };
-                case Faction.ComStar:
-                    return new List<Faction>() { Faction.ComStar, Faction.Locals };
-                case Faction.Davion:
-                    return new List<Faction>() { Faction.Davion, Faction.ComStar, Faction.Locals };
-                case Faction.Kurita:
-                    return new List<Faction>() { Faction.ComStar, Faction.Locals, Faction.Kurita };
-                case Faction.Liao:
-                    return new List<Faction>() { Faction.Liao, Faction.ComStar, Faction.Locals };
-                case Faction.Locals:
-                    return new List<Faction>() { Faction.Locals };
-                case Faction.MagistracyCentrella:
-                    return new List<Faction>() { Faction.Locals, Faction.MagistracyCentrella, Faction.AuriganPirates };
-                case Faction.MagistracyOfCanopus:
-                    return new List<Faction>() { Faction.Locals, Faction.ComStar, Faction.MagistracyOfCanopus };
-                case Faction.MajestyMetals:
-                    return new List<Faction>() { Faction.Locals, Faction.MajestyMetals };
-                case Faction.Marik:
-                    return new List<Faction>() { Faction.Locals, Faction.Marik, Faction.ComStar };
-                case Faction.MercenaryReviewBoard:
-                    return new List<Faction>() { Faction.Locals, Faction.ComStar, Faction.MercenaryReviewBoard };
-                case Faction.Nautilus:
-                    return new List<Faction>() { Faction.Locals, Faction.Nautilus, Faction.ComStar, Faction.AuriganPirates };
-                case Faction.NoFaction:
-                    return new List<Faction>() { Faction.Locals, Faction.NoFaction };
-                case Faction.Steiner:
-                    return new List<Faction>() { Faction.Locals, Faction.Steiner, Faction.ComStar };
-                case Faction.TaurianConcordat:
-                    return new List<Faction>() { Faction.Locals, Faction.TaurianConcordat, Faction.ComStar };
-                default:
-                    return new List<Faction>() { Faction.NoFaction };
-            }
-
-
-        }
-
-        public static List<Faction> getEnemies(Faction faction) {
-            switch (faction) {
-                case Faction.Betrayers:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Marik,Faction.MercenaryReviewBoard,Faction.Nautilus,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.AuriganDirectorate:
-                    return new List<Faction>() { Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.ComStar, Faction.Davion,Faction.Kurita, Faction.MagistracyCentrella,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.AuriganMercenaries:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.ComStar, Faction.Davion,Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.MagistracyOfCanopus,Faction.Nautilus,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.AuriganPirates:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.ComStar, Faction.Davion,Faction.Kurita,Faction.Liao,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Marik,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.AuriganRestoration:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,
-                        Faction.Betrayers, Faction.ComStar, Faction.Davion,Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.MajestyMetals, Faction.Marik,Faction.Nautilus,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.ComStar:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.Davion,Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Marik,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.Davion:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Davion,Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Marik,Faction.Nautilus,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.Kurita:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.Davion,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Nautilus,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.Liao:
-                    return new List<Faction>() { Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.Davion, Faction.MagistracyCentrella,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Marik,Faction.Nautilus,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.Locals:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.ComStar, Faction.Davion,Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Marik,Faction.Nautilus,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.MagistracyCentrella:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.ComStar, Faction.Davion,Faction.Liao,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Marik,Faction.Nautilus,Faction.TaurianConcordat };
-
-                case Faction.MagistracyOfCanopus:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,
-                        Faction.Betrayers, Faction.Davion,Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.Nautilus,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.MajestyMetals:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.ComStar, Faction.Davion,Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.Marik,Faction.Nautilus,
-                        Faction.Steiner};
-
-                case Faction.Marik:
-                    return new List<Faction>() {Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.Davion,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.MajestyMetals,Faction.Nautilus,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.MercenaryReviewBoard:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers,  Faction.Davion,Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Marik,Faction.Nautilus,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.Nautilus:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.ComStar, Faction.Davion,Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Marik,
-                        Faction.Steiner,Faction.TaurianConcordat };
-                case Faction.NoFaction:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers, Faction.ComStar, Faction.Davion,Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Marik,Faction.Nautilus,
-                        Faction.Steiner,Faction.TaurianConcordat };
-
-                case Faction.Steiner:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers,  Faction.Kurita,Faction.Liao,
-                        Faction.MagistracyOfCanopus,Faction.MajestyMetals, Faction.Marik,Faction.Nautilus,
-                        Faction.TaurianConcordat };
-                case Faction.TaurianConcordat:
-                    return new List<Faction>() { Faction.AuriganDirectorate,Faction.AuriganMercenaries,Faction.AuriganPirates,Faction.AuriganRestoration,
-                        Faction.Betrayers,  Faction.Davion,Faction.Kurita,Faction.Liao, Faction.MagistracyCentrella,
-                        Faction.MagistracyOfCanopus, Faction.Nautilus,
-                        Faction.Steiner };
-                default:
-                    return new List<Faction>() { Faction.NoFaction };
-            }
-        }*/
 
         public static string GetFactionTag(Faction faction) {
             try {
