@@ -11,10 +11,11 @@ namespace WarTech {
     public class SaveFields {
         public List<PlanetControlState> stateOfWar = null;
         public Dictionary<string, string> thisMonthChanges = new Dictionary<string, string>();
-
-        public SaveFields(List<PlanetControlState> stateOfWar, Dictionary<string, string> thisMonthChanges) {
+        public List<FactionResources> factionResources = null;
+        public SaveFields(List<PlanetControlState> stateOfWar, Dictionary<string, string> thisMonthChanges, List<FactionResources> factionResources) {
             this.stateOfWar = stateOfWar;
             this.thisMonthChanges = thisMonthChanges;
+            this.factionResources = factionResources;
         }
     }
 
@@ -74,7 +75,7 @@ namespace WarTech {
                         break;
                     }
                     int realChanges = percentageLeft;
-                    if(highestControl.percentage - realChanges < 0) {
+                    if (highestControl.percentage - realChanges < 0) {
                         int leftover = Math.Abs(highestControl.percentage - realChanges);
                         realChanges -= leftover;
                     }
@@ -85,7 +86,7 @@ namespace WarTech {
                     percentageLeft -= realChanges;
                     highestControl.percentage -= realChanges;
                     attackerControl.percentage += realChanges;
-                } while (percentageLeft > 0 );
+                } while (percentageLeft > 0);
                 return planetState;
             }
             catch (Exception ex) {
@@ -110,7 +111,8 @@ namespace WarTech {
                 }
                 if (win) {
                     planetState = CalculateActualAttacks(system, planetState, employee, target, true);
-                } else {
+                }
+                else {
                     planetState = CalculateActualAttacks(system, planetState, target, employee, true);
                 }
                 return EvaluateOwnerChange(ownerControl, planetState, system, Sim);
@@ -154,6 +156,102 @@ namespace WarTech {
             catch (Exception ex) {
                 Logger.LogError(ex);
                 return null;
+            }
+        }
+
+        public static void RefreshResources(SimGameState Sim) {
+            foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
+                if (!IsExcluded(pair.Key)) {
+                    if (Fields.factionResources.Find(x => x.faction == pair.Key) == null) {
+                        Fields.factionResources.Add(new FactionResources(pair.Key, 0, 0));
+                    }
+                    else {
+                        FactionResources resources = Fields.factionResources.Find(x => x.faction == pair.Key);
+                        resources.offence = 0;
+                        resources.defence = 0;
+                    }
+                }
+            }
+            foreach (StarSystem system in Sim.StarSystems) {
+                FactionResources resources = Fields.factionResources.Find(x => x.faction == system.Owner);
+                if (resources != null) {
+                    resources.offence += GetOffenceValue(system);
+                    resources.defence += GetDefenceValue(system);
+                }
+            }
+        }
+
+        /*
+            ATTACK POINTS
+            planet_industry_poor
+            planet_industry_mining
+            planet_industry_rich
+            planet_industry_manufacturing
+            planet_industry_research
+            planet_other_starleague
+            */
+        public static int GetOffenceValue(StarSystem system) {
+            try {
+                int result = 0;
+                if (system.Tags.Contains("planet_industry_poor"))
+                    result += -1;
+                if (system.Tags.Contains("planet_industry_mining"))
+                    result += 1;
+                if (system.Tags.Contains("planet_industry_rich"))
+                    result += 2;
+                if (system.Tags.Contains("planet_industry_rich"))
+                    result += 3;
+                if (system.Tags.Contains("planet_industry_manufacturing"))
+                    result += 4;
+                if (system.Tags.Contains("planet_industry_research"))
+                    result += 5;
+                if (system.Tags.Contains("planet_other_starleague"))
+                    result += 6;
+                return result;
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return 0;
+            }
+        }
+        /* DEFENSE POINTS
+            planet_pop_none
+            planet_pop_small
+            planet_pop_medium
+             planet_industry_aquaculture
+             planet_industry_agriculture
+             planet_pop_large
+             planet_other_hub
+             planet_other_megacity
+             planet_other_capital
+             */
+
+        public static int GetDefenceValue(StarSystem system) {
+            try {
+                int result = 0;
+                if (system.Tags.Contains("planet_pop_none"))
+                    result += -1;
+                if (system.Tags.Contains("planet_pop_small"))
+                    result += 1;
+                if (system.Tags.Contains("planet_pop_medium"))
+                    result += 2;
+                if (system.Tags.Contains("planet_industry_aquaculture"))
+                    result += 3;
+                if (system.Tags.Contains("planet_industry_agriculture"))
+                    result += 3;
+                if (system.Tags.Contains("planet_pop_large"))
+                    result += 4;
+                if (system.Tags.Contains("planet_other_hub"))
+                    result += 5;
+                if (system.Tags.Contains("planet_other_megacity"))
+                    result += 6;
+                if (system.Tags.Contains("planet_other_capital"))
+                    result += 7;
+                return result;
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return 0;
             }
         }
 
@@ -232,7 +330,7 @@ namespace WarTech {
                     system.Tags.Add("planet_other_battlefield");
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { 2 });
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_UseMaxContractOverride", new object[] { true });
-                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_MaxContractOverride", new object[] { Sim.Constants.Story.MaxContractsPerSystem + Sim.Constants.Story.MaxContractsPerSystem/2 });
+                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_MaxContractOverride", new object[] { Sim.Constants.Story.MaxContractsPerSystem + Sim.Constants.Story.MaxContractsPerSystem / 2 });
                 }
                 else {
                     system.Tags.Remove("planet_other_battlefield");
@@ -258,7 +356,7 @@ namespace WarTech {
                         factionList.Add(Helper.GetFactionName(fc.faction, Sim.DataManager) + ": " + fc.percentage + "%");
                     }
                 }
-                ReflectionHelper.InvokePrivateMethode(system.Def.Description, "set_Details", new object[]{ string.Join("\n", factionList.ToArray())});
+                ReflectionHelper.InvokePrivateMethode(system.Def.Description, "set_Details", new object[] { string.Join("\n", factionList.ToArray()) });
                 return system;
             }
             catch (Exception ex) {
@@ -401,7 +499,7 @@ namespace WarTech {
                 string filePath = baseDirectory + $"/ModSaves/WarTech/" + instanceGUID + "-" + unixTimestamp + ".json";
                 (new FileInfo(filePath)).Directory.Create();
                 using (StreamWriter writer = new StreamWriter(filePath, true)) {
-                    SaveFields fields = new SaveFields(Fields.stateOfWar, Fields.thisMonthChanges);
+                    SaveFields fields = new SaveFields(Fields.stateOfWar, Fields.thisMonthChanges, Fields.factionResources);
                     string json = JsonConvert.SerializeObject(fields);
                     writer.Write(json);
                 }
@@ -422,6 +520,7 @@ namespace WarTech {
                         SaveFields save = JsonConvert.DeserializeObject<SaveFields>(json);
                         Fields.stateOfWar = save.stateOfWar;
                         Fields.thisMonthChanges = save.thisMonthChanges;
+                        Fields.factionResources = save.factionResources;
                     }
                 }
             }

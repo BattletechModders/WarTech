@@ -127,6 +127,7 @@ namespace WarTech {
     public static class SimGameState_OnDayPassed_Patch {
         static void Prefix(SimGameState __instance, int timeLapse) {
             try {
+                //DAILY
                 Random rand = new Random();
                 for (int i = 0; i < Fields.settings.SystemsPerTick; i++) {
                     StarSystem system;
@@ -136,8 +137,10 @@ namespace WarTech {
                     system = Helper.AttackSystem(system, __instance);
                 }
 
+                //MONTHLY
                 int num = (timeLapse <= 0) ? 1 : timeLapse;
                 if ((__instance.DayRemainingInQuarter - num <= 0)) {
+                    Helper.RefreshResources(__instance);
                     Helper.RefreshEnemies(__instance);
                     Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)AccessTools.Field(typeof(SimGameState), "factions").GetValue(__instance);
                     foreach (KeyValuePair<Faction, FactionDef> pair in factions) {
@@ -158,9 +161,16 @@ namespace WarTech {
                         changeList.Add("No changes this month");
                     }
                     Fields.thisMonthChanges = new Dictionary<string, string>();
+                    List<string> factionResourceList = new List<string>();
+                    foreach (FactionResources resources in Fields.factionResources) {
+                        factionResourceList.Add(Helper.GetFactionName(resources.faction, __instance.DataManager) + ": \nOffence: "+resources.offence+ "\nDefence: " + resources.defence); 
+                    }
                     __instance.StopPlayMode();
                     SimGameInterruptManager interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(__instance);
+                    interruptQueue.QueuePauseNotification("Monthly Faction Strenght", string.Join("\n ", factionResourceList.ToArray()) + "\n", __instance.GetCrewPortrait(SimGameCrew.Crew_Darius), string.Empty, null, "Understood", null, string.Empty);
+                    interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(__instance);
                     interruptQueue.QueuePauseNotification("Monthly War Report", string.Join("\n ", changeList.ToArray()) + "\n", __instance.GetCrewPortrait(SimGameCrew.Crew_Sumire), string.Empty, null, "Understood", null, string.Empty);
+
                 }
             }
             catch (Exception e) {

@@ -4,18 +4,32 @@ using System.Collections.Generic;
 namespace WarTech {
     public class Settings {
         public int AttackPercentagePerTick = 1;
-        public int AttackPercentagePerPlayerMission = 10;
+        public int AttackPercentagePerPlayerMission = 5;
         public int SystemsPerTick = 100;
         public List<string> excludedFactionNames = new List<string>();
         public int PercentageForControl = 30;
     }
-    
+
     public static class Fields {
-       public static List<PlanetControlState> stateOfWar = null;
+        public static List<FactionResources> factionResources = new List<FactionResources>();
+        public static List<PlanetControlState> stateOfWar = null;
         public static Dictionary<string, string> thisMonthChanges = new Dictionary<string, string>();
         public static Dictionary<Faction, List<Faction>> currentEnemies = null;
         public static Settings settings;
     }
+
+    public class FactionResources {
+        public int offence;
+        public int defence;
+        public Faction faction;
+
+        public FactionResources(Faction faction, int offence, int defence) {
+            this.faction = faction;
+            this.offence = offence;
+            this.defence = defence;
+        }
+    }
+
 
     public class PlanetControlState {
         public List<FactionControl> factionList;
