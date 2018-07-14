@@ -7,6 +7,7 @@ using HBS;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
 
 namespace WarTech {
 
@@ -18,9 +19,10 @@ namespace WarTech {
                 GameInstance game = LazySingletonBehavior<UnityGameInstance>.Instance.Game;
                 StarSystem system = game.Simulation.StarSystems.Find(x => x.ID == __instance.TargetSystem);
                 Faction oldOwner = system.Def.Owner;
-                if(result == MissionResult.Victory) {
+                if (result == MissionResult.Victory) {
                     system = Helper.PlayerAttackSystem(system, game.Simulation, __instance.Override.employerTeam.faction, __instance.Override.targetTeam.faction, true);
-                } else {
+                }
+                else {
                     system = Helper.PlayerAttackSystem(system, game.Simulation, __instance.Override.employerTeam.faction, __instance.Override.targetTeam.faction, false);
                 }
                 if (system.Def.Owner != oldOwner) {
@@ -104,6 +106,10 @@ namespace WarTech {
                         }
                     }
                 }
+                Helper.RefreshTargets(simGame);
+                if (Fields.factionResources.Count == 0) {
+                    Helper.RefreshResources(simGame);
+                }
             }
             catch (Exception e) {
                 Logger.LogError(e);
@@ -128,13 +134,23 @@ namespace WarTech {
         static void Prefix(SimGameState __instance, int timeLapse) {
             try {
                 //DAILY
-                Random rand = new Random();
-                for (int i = 0; i < Fields.settings.SystemsPerTick; i++) {
-                    StarSystem system;
-                    do {
-                        system = __instance.StarSystems[rand.Next(0, __instance.StarSystems.Count)];
-                    } while (Helper.IsExcluded(system.Owner));
-                    system = Helper.AttackSystem(system, __instance);
+                System.Random rand = new System.Random();
+                foreach (KeyValuePair<Faction, FactionDef> pair in __instance.FactionsDict) {
+                    if (!Helper.IsExcluded(pair.Key)) {
+                        List<TargetSystem> targets = Fields.availableTargets[pair.Key].OrderByDescending(x => Helper.GetOffenceValue(x.system) + Helper.GetDefenceValue(x.system) + x.factionNeighbours[pair.Key]).ToList();
+                        if (targets.Count > 0) {
+                            int numberOfAttacks = Mathf.Min(targets.Count, Mathf.CeilToInt(Fields.factionResources.Find(x => x.faction == pair.Key).offence / 100f));
+                            for (int i = 0; i < numberOfAttacks; i++) {
+                                StarSystem system = __instance.StarSystems.Find(x => x.Name == targets[i].system.Name);
+                                if (system != null) {
+                                    system = Helper.AttackSystem(system, __instance, pair.Key, rand);
+                                }
+                            }
+                        }
+                        else {
+                            Logger.LogLine(Helper.GetFactionName(pair.Key, __instance.DataManager) + "is out of targets");
+                        }
+                    }
                 }
 
                 //MONTHLY
@@ -154,23 +170,24 @@ namespace WarTech {
                     foreach (KeyValuePair<string, string> changes in Fields.thisMonthChanges) {
                         StarSystem changedSystem = __instance.StarSystems.Find(x => x.Name.Equals(changes.Key));
                         if (!Helper.GetFactionName(changedSystem.Owner, __instance.DataManager).Equals(changes.Value)) {
-                            changeList.Add(Helper.GetFactionName(changedSystem.Owner,__instance.DataManager) + " took " + changes.Key + " from " + changes.Value);
+                            changeList.Add(Helper.GetFactionName(changedSystem.Owner, __instance.DataManager) + " took " + changes.Key + " from " + changes.Value);
                         }
                     }
                     if (changeList.Count == 0) {
                         changeList.Add("No changes this month");
                     }
                     Fields.thisMonthChanges = new Dictionary<string, string>();
-                    List<string> factionResourceList = new List<string>();
-                    foreach (FactionResources resources in Fields.factionResources) {
-                        factionResourceList.Add(Helper.GetFactionName(resources.faction, __instance.DataManager) + ": \nOffence: "+resources.offence+ "\nDefence: " + resources.defence); 
+                    SimGameInterruptManager interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(__instance);
+                    interruptQueue.QueuePauseNotification("Monthly War Report", string.Join("\n", changeList.ToArray()) + "\n", __instance.GetCrewPortrait(SimGameCrew.Crew_Sumire), string.Empty, null, "Understood", null, string.Empty);
+                    if (Fields.settings.debug) {
+                        List<string> factionResourceList = new List<string>();
+                        foreach (FactionResources resources in Fields.factionResources) {
+                            factionResourceList.Add(Helper.GetFactionName(resources.faction, __instance.DataManager) + ": \nOffence: " + resources.offence + "\nDefence: " + resources.defence);
+                        }
+                        interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(__instance);
+                        interruptQueue.QueuePauseNotification("Monthly Faction Strenght", string.Join("\n", factionResourceList.ToArray()) + "\n", __instance.GetCrewPortrait(SimGameCrew.Crew_Darius), string.Empty, null, "Understood", null, string.Empty);
                     }
                     __instance.StopPlayMode();
-                    SimGameInterruptManager interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(__instance);
-                    interruptQueue.QueuePauseNotification("Monthly Faction Strenght", string.Join("\n ", factionResourceList.ToArray()) + "\n", __instance.GetCrewPortrait(SimGameCrew.Crew_Darius), string.Empty, null, "Understood", null, string.Empty);
-                    interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(__instance);
-                    interruptQueue.QueuePauseNotification("Monthly War Report", string.Join("\n ", changeList.ToArray()) + "\n", __instance.GetCrewPortrait(SimGameCrew.Crew_Sumire), string.Empty, null, "Understood", null, string.Empty);
-
                 }
             }
             catch (Exception e) {

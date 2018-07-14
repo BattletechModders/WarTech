@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using UnityEngine;
 
 namespace WarTech {
 
@@ -33,16 +34,23 @@ namespace WarTech {
             }
         }
 
-        public static StarSystem AttackSystem(StarSystem system, SimGameState Sim) {
+        public static StarSystem AttackSystem(StarSystem system, SimGameState Sim, Faction Attacker, System.Random rand) {
             try {
 
+
+
                 PlanetControlState planetState = Fields.stateOfWar.FirstOrDefault(x => x.system.Equals(system.Name));
+                FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == system.Owner);
+                planetState = CalculateActualAttacks(system, planetState, Attacker, system.Owner, false, rand);
+
+                /*PlanetControlState planetState = Fields.stateOfWar.FirstOrDefault(x => x.system.Equals(system.Name));
                 FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == system.Owner);
                 foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
                     if (neigbourSystem.Owner != system.Owner && !IsExcluded(neigbourSystem.Owner)) {
                         planetState = CalculateActualAttacks(system, planetState, neigbourSystem.Owner, system.Owner, false);
                     }
-                }
+                }*/
+
                 return EvaluateOwnerChange(ownerControl, planetState, system, Sim);
             }
             catch (Exception ex) {
@@ -51,25 +59,45 @@ namespace WarTech {
             }
         }
 
-        public static PlanetControlState CalculateActualAttacks(StarSystem system, PlanetControlState planetState, Faction benefactor, Faction initialTarget, bool player) {
+        public static PlanetControlState CalculateActualAttacks(StarSystem system, PlanetControlState planetState, Faction benefactor, Faction initialTarget, bool player, System.Random rand) {
             try {
-
                 int percentageLeft;
+                FactionControl highestControl = planetState.factionList.FirstOrDefault(x => x.faction == initialTarget);
+                FactionControl attackerControl = planetState.factionList.FirstOrDefault(x => x.faction == benefactor);
+                if (attackerControl == null) {
+                    attackerControl = new FactionControl(0, benefactor);
+                    planetState.factionList.Add(attackerControl);
+                }
                 if (player) {
                     percentageLeft = Fields.settings.AttackPercentagePerPlayerMission;
                 }
                 else {
-                    percentageLeft = Fields.settings.AttackPercentagePerTick;
+                    if (Fields.factionResources.Find(x => x.faction == benefactor).offence > 0 && Fields.factionResources.Find(x => x.faction == initialTarget).defence > 0) {
+                        int maxAttack = Mathf.Min(100 - attackerControl.percentage, Fields.factionResources.Find(x => x.faction == benefactor).offence);
+                        int maxDefence = Mathf.Min(100 - attackerControl.percentage, Fields.factionResources.Find(x => x.faction == initialTarget).defence);
+                        int randomAttack = rand.Next(maxAttack) + 1;
+                        int randomDefence = rand.Next(maxDefence) + 1;
+                        percentageLeft = Mathf.Max(0, randomAttack - randomDefence);
+                        Fields.factionResources.Find(x => x.faction == benefactor).offence -= randomAttack;
+                        Fields.factionResources.Find(x => x.faction == initialTarget).defence -= randomDefence;
+                        if (Fields.settings.debug) {
+                            Logger.LogAttacks(system.Name, benefactor, randomAttack, initialTarget, randomDefence);
+                        }
+                    } else {
+                        if (Fields.factionResources.Find(x => x.faction == benefactor).offence > 0) {
+                            percentageLeft = 0;
+                        } else {
+                            int attack = Mathf.Min(100 - attackerControl.percentage, Fields.factionResources.Find(x => x.faction == benefactor).offence);
+                            percentageLeft = attack;
+                            Fields.factionResources.Find(x => x.faction == benefactor).offence -= attack;
+                        }
+                    }
                 }
+                
                 do {
-                    FactionControl highestControl = planetState.factionList.FirstOrDefault(x => x.faction == initialTarget);
+                    highestControl = planetState.factionList.FirstOrDefault(x => x.faction == initialTarget);
                     if (highestControl.percentage == 0) {
                         highestControl = planetState.factionList.FindAll(x => x.faction != benefactor).OrderByDescending(i => i.percentage).First();
-                    }
-                    FactionControl attackerControl = planetState.factionList.FirstOrDefault(x => x.faction == benefactor);
-                    if (attackerControl == null) {
-                        attackerControl = new FactionControl(0, benefactor);
-                        planetState.factionList.Add(attackerControl);
                     }
                     if (attackerControl.percentage == 100) {
                         break;
@@ -109,11 +137,12 @@ namespace WarTech {
                     targetControl = new FactionControl(0, target);
                     planetState.factionList.Add(targetControl);
                 }
+                System.Random rand = new System.Random();
                 if (win) {
-                    planetState = CalculateActualAttacks(system, planetState, employee, target, true);
+                    planetState = CalculateActualAttacks(system, planetState, employee, target, true, rand);
                 }
                 else {
-                    planetState = CalculateActualAttacks(system, planetState, target, employee, true);
+                    planetState = CalculateActualAttacks(system, planetState, target, employee, true, rand);
                 }
                 return EvaluateOwnerChange(ownerControl, planetState, system, Sim);
             }
@@ -171,10 +200,13 @@ namespace WarTech {
                         resources.defence = 0;
                     }
                 }
+                if (Fields.factionResources.Find(x => x.faction == Faction.Locals) == null) {
+                    Fields.factionResources.Add(new FactionResources(Faction.Locals, 0, 0));
+                }
             }
             foreach (StarSystem system in Sim.StarSystems) {
                 FactionResources resources = Fields.factionResources.Find(x => x.faction == system.Owner);
-                if (resources != null) {
+                if (resources != null && !IsExcluded(resources.faction)) {
                     resources.offence += GetOffenceValue(system);
                     resources.defence += GetDefenceValue(system);
                 }
@@ -318,6 +350,12 @@ namespace WarTech {
         public static StarSystem ChangeOwner(StarSystem system, FactionControl control, SimGameState Sim, bool battle) {
             try {
                 if (battle) {
+                    if (control.faction != Faction.Locals && Fields.availableTargets.Count > 0) {
+                        TargetSystem target = Fields.availableTargets[control.faction].Find(x => x.system == system);
+                        Fields.availableTargets[control.faction].Remove(target);
+                        target.CalculateNeighbours(Sim);
+                        Fields.availableTargets[system.Owner].Add(target);
+                    }
                     string factiontag = GetFactionTag(system.Owner);
                     if (!string.IsNullOrEmpty(factiontag))
                         system.Tags.Remove(factiontag);
@@ -381,6 +419,40 @@ namespace WarTech {
             catch (Exception ex) {
                 Logger.LogError(ex);
                 return false;
+            }
+        }
+
+        public static void RefreshTargets(SimGameState Sim) {
+            try {
+                Fields.availableTargets = new Dictionary<Faction, List<TargetSystem>>();
+                foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
+                    if (!IsExcluded(pair.Key)) {
+                        Fields.availableTargets.Add(pair.Key, new List<TargetSystem>());
+                    }
+                }
+                if (Sim.Starmap != null) {
+                    foreach (StarSystem system in Sim.StarSystems) {
+                        foreach (StarSystem neighbour in Sim.Starmap.GetAvailableNeighborSystem(system)) {
+                            if (system.Owner != neighbour.Owner) {
+                                if (!IsExcluded(neighbour.Owner) && !IsExcluded(system.Owner)) {
+                                    TargetSystem target;
+                                    if (!Fields.availableTargets.ContainsKey(system.Owner)) {
+                                        Fields.availableTargets.Add(system.Owner, new List<TargetSystem>());
+                                    }
+                                    target = Fields.availableTargets[system.Owner].Find(x => x.system == neighbour);
+                                    if (target == null) {
+                                        target = new TargetSystem(neighbour, new Dictionary<Faction, int>());
+                                        target.CalculateNeighbours(Sim);
+                                        Fields.availableTargets[system.Owner].Add(target);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
             }
         }
 

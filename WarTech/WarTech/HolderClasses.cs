@@ -4,10 +4,12 @@ using System.Collections.Generic;
 namespace WarTech {
     public class Settings {
         public int AttackPercentagePerTick = 1;
-        public int AttackPercentagePerPlayerMission = 5;
+        public int AttackPercentagePerPlayerMission = 10;
         public int SystemsPerTick = 100;
         public List<string> excludedFactionNames = new List<string>();
         public int PercentageForControl = 30;
+        public int WeightOfNeighbours = 1;
+        public bool debug = false;
     }
 
     public static class Fields {
@@ -16,6 +18,28 @@ namespace WarTech {
         public static Dictionary<string, string> thisMonthChanges = new Dictionary<string, string>();
         public static Dictionary<Faction, List<Faction>> currentEnemies = null;
         public static Settings settings;
+        public static Dictionary<Faction, List<TargetSystem>> availableTargets = new Dictionary<Faction, List<TargetSystem>>();
+    }
+
+    public class TargetSystem {
+        public StarSystem system;
+        public Dictionary<Faction, int> factionNeighbours;
+
+        public TargetSystem(StarSystem system, Dictionary<Faction, int> factionNeighbours) {
+            this.system = system;
+            this.factionNeighbours = factionNeighbours;
+        }
+
+        public void CalculateNeighbours(SimGameState Sim) {
+            this.factionNeighbours = new Dictionary<Faction, int>();
+            foreach(StarSystem system in Sim.Starmap.GetAvailableNeighborSystem(this.system)) {
+                if (this.factionNeighbours.ContainsKey(system.Owner)) {
+                    this.factionNeighbours[system.Owner] += 1;
+                } else {
+                    this.factionNeighbours.Add(system.Owner, 1);
+                }
+            }
+        }
     }
 
     public class FactionResources {
