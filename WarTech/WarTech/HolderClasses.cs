@@ -1,4 +1,5 @@
 ﻿using BattleTech;
+using BattleTech.Framework;
 using System.Collections.Generic;
 
 namespace WarTech {
@@ -9,6 +10,7 @@ namespace WarTech {
         public List<string> excludedFactionNames = new List<string>();
         public int PercentageForControl = 30;
         public int WeightOfNeighbours = 1;
+        public float priorityContactPayPercentage = 1.5f;
         public bool debug = false;
     }
 
@@ -75,5 +77,19 @@ namespace WarTech {
             this.faction = faction;
             this.percentage = percentage;
         }
+    }
+
+    public struct PotentialContract {
+        // Token: 0x040089A4 RID: 35236
+        public ContractOverride contractOverride;
+
+        // Token: 0x040089A5 RID: 35237
+        public Faction employer;
+
+        // Token: 0x040089A6 RID: 35238
+        public Faction target;
+
+        // Token: 0x040089A7 RID: 35239
+        public int difficulty;
     }
 }

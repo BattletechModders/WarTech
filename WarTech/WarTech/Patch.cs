@@ -1,4 +1,5 @@
 ﻿using BattleTech;
+using BattleTech.Framework;
 using BattleTech.Save;
 using BattleTech.Save.SaveGameStructure;
 using BattleTech.UI;
@@ -10,6 +11,56 @@ using System.Linq;
 using UnityEngine;
 
 namespace WarTech {
+
+    [HarmonyPatch(typeof(StarSystem), "GenerateInitialContracts")]
+    public static class StarSystem_GenerateInitialContracts_Patch {
+        static void Postfix(StarSystem __instance) {
+            try {
+                if (Fields.settings.debug) {
+                    ReflectionHelper.InvokePrivateMethode(__instance.Sim, "SetReputation", new object[] { Faction.Steiner, 100, StatCollection.StatOperation.Set, null });
+                }
+                __instance.Sim.GlobalContracts.Clear();
+                foreach (KeyValuePair<Faction, FactionDef> pair in __instance.Sim.FactionsDict) {
+                    if (!Helper.IsExcluded(pair.Key)) {
+                        SimGameReputation rep = __instance.Sim.GetReputation(pair.Key);
+                        int numberOfContracts;
+                        switch (rep) {
+                            case SimGameReputation.LIKED: {
+                                    numberOfContracts = 1;
+                                    break;
+                                }
+                            case SimGameReputation.FRIENDLY: {
+                                    numberOfContracts = 2;
+                                    break;
+                                }
+                            case SimGameReputation.ALLIED: {
+                                    numberOfContracts = 3;
+                                    break;
+                                }
+                            default: {
+                                    numberOfContracts = 0;
+                                    break;
+                                }
+                        }
+
+                        List<TargetSystem> targets = Fields.availableTargets[pair.Key].OrderByDescending(x => Helper.GetOffenceValue(x.system) + Helper.GetDefenceValue(x.system) + x.factionNeighbours[pair.Key]).ToList();
+                        for (int i = 0; i < numberOfContracts; i++) {
+                            Contract contract = Helper.GetNewWarContract(__instance.Sim, targets[i].system.Def.Difficulty, pair.Key, targets[i].system.Owner, targets[i].system);
+                            contract.Override.contractDisplayStyle = ContractDisplayStyle.BaseCampaignStory;
+                            contract.SetInitialReward(Mathf.RoundToInt(contract.InitialContractValue * Fields.settings.priorityContactPayPercentage));
+                            contract.Override.salvagePotential = Mathf.RoundToInt(contract.Override.salvagePotential * Fields.settings.priorityContactPayPercentage);
+                            contract.Override.negotiatedSalvage = 1f;
+                            __instance.Sim.GlobalContracts.Add(contract);
+                        }
+
+                    }
+                }
+            }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
+        }
+    }
 
     [HarmonyPatch(typeof(Contract), "CompleteContract")]
     public static class Contract_CompleteContract_Patch {
