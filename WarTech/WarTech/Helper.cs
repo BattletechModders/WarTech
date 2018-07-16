@@ -12,13 +12,15 @@ using UnityEngine;
 namespace WarTech {
 
     public class SaveFields {
+        public bool warmission = false;
         public List<PlanetControlState> stateOfWar = null;
         public Dictionary<string, string> thisMonthChanges = new Dictionary<string, string>();
         public List<FactionResources> factionResources = null;
-        public SaveFields(List<PlanetControlState> stateOfWar, Dictionary<string, string> thisMonthChanges, List<FactionResources> factionResources) {
+        public SaveFields(List<PlanetControlState> stateOfWar, Dictionary<string, string> thisMonthChanges, List<FactionResources> factionResources, bool warmission) {
             this.stateOfWar = stateOfWar;
             this.thisMonthChanges = thisMonthChanges;
             this.factionResources = factionResources;
+            this.warmission = warmission;
         }
     }
 
@@ -466,7 +468,7 @@ namespace WarTech {
                     employees.Add(Faction.Locals);
                     employees.Add(system.Owner);
                     foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                        if (system.Owner != neigbourSystem.Owner && !employees.Contains(neigbourSystem.Owner)) {
+                        if (system.Owner != neigbourSystem.Owner && !employees.Contains(neigbourSystem.Owner) && !IsExcluded(neigbourSystem.Owner)) {
                             employees.Add(neigbourSystem.Owner);
                         }
                     }
@@ -492,7 +494,7 @@ namespace WarTech {
                     targets.Add(Faction.AuriganPirates);
                     targets.Add(system.Owner);
                     foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                        if (system.Owner != neigbourSystem.Owner && !targets.Contains(neigbourSystem.Owner)) {
+                        if (system.Owner != neigbourSystem.Owner && !targets.Contains(neigbourSystem.Owner) && !IsExcluded(neigbourSystem.Owner) ) {
                             targets.Add(neigbourSystem.Owner);
                         }
                     }
@@ -573,7 +575,7 @@ namespace WarTech {
                 string filePath = baseDirectory + $"/ModSaves/WarTech/" + instanceGUID + "-" + unixTimestamp + ".json";
                 (new FileInfo(filePath)).Directory.Create();
                 using (StreamWriter writer = new StreamWriter(filePath, true)) {
-                    SaveFields fields = new SaveFields(Fields.stateOfWar, Fields.thisMonthChanges, Fields.factionResources);
+                    SaveFields fields = new SaveFields(Fields.stateOfWar, Fields.thisMonthChanges, Fields.factionResources, Fields.warmission);
                     string json = JsonConvert.SerializeObject(fields);
                     writer.Write(json);
                 }
@@ -595,6 +597,7 @@ namespace WarTech {
                         Fields.stateOfWar = save.stateOfWar;
                         Fields.thisMonthChanges = save.thisMonthChanges;
                         Fields.factionResources = save.factionResources;
+                        Fields.warmission = save.warmission;
                     }
                 }
             }

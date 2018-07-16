@@ -21,6 +21,7 @@ namespace WarTech {
         public static Dictionary<Faction, List<Faction>> currentEnemies = null;
         public static Settings settings;
         public static Dictionary<Faction, List<TargetSystem>> availableTargets = new Dictionary<Faction, List<TargetSystem>>();
+        public static bool warmission = false;
     }
 
     public class TargetSystem {

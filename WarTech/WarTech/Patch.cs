@@ -11,6 +11,36 @@ using System.Linq;
 using UnityEngine;
 
 namespace WarTech {
+    
+    [HarmonyPatch(typeof(SimGameState), "AddPredefinedContract")]
+    public static class SimGameState_AddPredefinedContract_Patch {
+        static void Postfix(SimGameState __instance, Contract __result) {
+            try {
+                if (Fields.warmission) {
+                    __result.SetInitialReward(Mathf.RoundToInt(__result.InitialContractValue * Fields.settings.priorityContactPayPercentage));
+                    __result.Override.salvagePotential = Mathf.RoundToInt(__result.Override.salvagePotential * Fields.settings.priorityContactPayPercentage);
+                    Fields.warmission = false;
+                }
+            }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(SimGameState), "PrepareBreadcrumb")]
+    public static class SimGameState_PrepareBreadcrumb_Patch {
+        static void Postfix(SimGameState __instance, ref Contract contract) {
+            try {
+                if (contract.IsPriorityContract) {
+                    Fields.warmission = true;
+                }
+            }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
+        }
+    }
 
     [HarmonyPatch(typeof(StarSystem), "GenerateInitialContracts")]
     public static class StarSystem_GenerateInitialContracts_Patch {
@@ -42,7 +72,6 @@ namespace WarTech {
                                     break;
                                 }
                         }
-
                         List<TargetSystem> targets = Fields.availableTargets[pair.Key].OrderByDescending(x => Helper.GetOffenceValue(x.system) + Helper.GetDefenceValue(x.system) + x.factionNeighbours[pair.Key]).ToList();
                         for (int i = 0; i < numberOfContracts; i++) {
                             Contract contract = Helper.GetNewWarContract(__instance.Sim, targets[i].system.Def.Difficulty, pair.Key, targets[i].system.Owner, targets[i].system);
