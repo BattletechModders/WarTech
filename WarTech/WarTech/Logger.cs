@@ -35,5 +35,14 @@ namespace WarTech {
                 writer.WriteLine(Environment.NewLine + "-----------------------------------------------------------------------------" + Environment.NewLine);
             }
         }
+
+        internal static void LogMonthlyReport(string v) {
+            string monthly = $"{ WarTech.ModDirectory}/Monthly.txt";
+            (new FileInfo(monthly)).Directory.Create();
+            using (StreamWriter writer = new StreamWriter(monthly, true)) {
+                writer.WriteLine(v.Replace("\n", Environment.NewLine));
+                writer.WriteLine(Environment.NewLine + "-----------------------------------------------------------------------------" + Environment.NewLine);
+            }
+        }
     }
 }

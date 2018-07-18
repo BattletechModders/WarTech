@@ -11,7 +11,7 @@ using System.Linq;
 using UnityEngine;
 
 namespace WarTech {
-    
+
     [HarmonyPatch(typeof(SimGameState), "AddPredefinedContract")]
     public static class SimGameState_AddPredefinedContract_Patch {
         static void Postfix(SimGameState __instance, Contract __result) {
@@ -51,7 +51,7 @@ namespace WarTech {
                 }
                 __instance.Sim.GlobalContracts.Clear();
                 foreach (KeyValuePair<Faction, FactionDef> pair in __instance.Sim.FactionsDict) {
-                    if (!Helper.IsExcluded(pair.Key)) {
+                    if (!Helper.IsExcluded(pair.Key) && Helper.IsAtWar(pair.Key)) {
                         SimGameReputation rep = __instance.Sim.GetReputation(pair.Key);
                         int numberOfContracts;
                         switch (rep) {
@@ -72,7 +72,8 @@ namespace WarTech {
                                     break;
                                 }
                         }
-                        List<TargetSystem> targets = Fields.availableTargets[pair.Key].OrderByDescending(x => Helper.GetOffenceValue(x.system) + Helper.GetDefenceValue(x.system) + x.factionNeighbours[pair.Key]).ToList();
+                        List<TargetSystem> targets = Fields.availableTargets[pair.Key].OrderByDescending(x => Helper.GetOffenceValue(x.system) + Helper.GetDefenceValue(x.system) + x.factionNeighbours[pair.Key]).ToList();//
+                        numberOfContracts = Mathf.Min(numberOfContracts, targets.Count);
                         for (int i = 0; i < numberOfContracts; i++) {
                             Contract contract = Helper.GetNewWarContract(__instance.Sim, targets[i].system.Def.Difficulty, pair.Key, targets[i].system.Owner, targets[i].system);
                             contract.Override.contractDisplayStyle = ContractDisplayStyle.BaseCampaignStory;
@@ -190,24 +191,19 @@ namespace WarTech {
                 if (Fields.factionResources.Count == 0) {
                     Helper.RefreshResources(simGame);
                 }
+                if (Fields.WarFatique == null || Fields.WarFatique.Count == 0) {
+                    Fields.WarFatique = new Dictionary<Faction, float>();
+                    Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)AccessTools.Field(typeof(SimGameState), "factions").GetValue(simGame);
+                    foreach (KeyValuePair<Faction, FactionDef> pair in factions) {
+                        Fields.WarFatique.Add(pair.Key, 0);
+                    }
+                }
             }
             catch (Exception e) {
                 Logger.LogError(e);
             }
         }
     }
-
-    /*[HarmonyPatch(typeof(SimGameState), "Rehydrate")]
-    public static class SimGameState_Rehydrate_Patch {
-        static void Postfix(SimGameState __instance, GameInstanceSave gameInstanceSave) {
-            try {
-                
-            }
-            catch (Exception e) {
-                Logger.LogError(e);
-            }
-        }
-    }*/
 
     [HarmonyPatch(typeof(SimGameState), "OnDayPassed")]
     public static class SimGameState_OnDayPassed_Patch {
@@ -216,9 +212,10 @@ namespace WarTech {
                 //DAILY
                 System.Random rand = new System.Random();
                 foreach (KeyValuePair<Faction, FactionDef> pair in __instance.FactionsDict) {
-                    if (!Helper.IsExcluded(pair.Key)) {
-                        List<TargetSystem> targets = Fields.availableTargets[pair.Key].OrderByDescending(x => Helper.GetOffenceValue(x.system) + Helper.GetDefenceValue(x.system) + x.factionNeighbours[pair.Key]).ToList();
-                        if (targets.Count > 0) {
+                    if (!Helper.IsExcluded(pair.Key) && Helper.IsAtWar(pair.Key)) {
+                        List<TargetSystem> availableTargets = Fields.availableTargets[pair.Key];
+                        if (availableTargets.Count > 0) {
+                            List<TargetSystem> targets = availableTargets.OrderByDescending(x => Helper.GetOffenceValue(x.system) + Helper.GetDefenceValue(x.system) + x.factionNeighbours[pair.Key]).ToList();
                             int numberOfAttacks = Mathf.Min(targets.Count, Mathf.CeilToInt(Fields.factionResources.Find(x => x.faction == pair.Key).offence / 100f));
                             for (int i = 0; i < numberOfAttacks; i++) {
                                 StarSystem system = __instance.StarSystems.Find(x => x.Name == targets[i].system.Name);
@@ -227,31 +224,109 @@ namespace WarTech {
                                 }
                             }
                         }
-                        else {
-                            Logger.LogLine(Helper.GetFactionName(pair.Key, __instance.DataManager) + "is out of targets");
-                        }
+                    }
+                    else if (!Helper.IsExcluded(pair.Key) && Fields.WarFatique[pair.Key] >= 0) {
+                        Fields.WarFatique[pair.Key] -= Fields.settings.FatiqueRecoveredPerDay;
                     }
                 }
+
 
                 //MONTHLY
                 int num = (timeLapse <= 0) ? 1 : timeLapse;
                 if ((__instance.DayRemainingInQuarter - num <= 0)) {
-                    Helper.RefreshResources(__instance);
-                    Helper.RefreshEnemies(__instance);
+                    foreach (KeyValuePair<string, string> changes in Fields.thisMonthChanges) {
+                        StarSystem changedSystem = __instance.StarSystems.Find(x => x.Name.Equals(changes.Key));
+                        if (!Helper.GetFactionName(changedSystem.Owner, __instance.DataManager).Equals(changes.Value)) {
+                            War war = Helper.getWar(changedSystem.Owner);
+                            war.monthlyEvents.Add(Helper.GetFactionName(changedSystem.Owner, __instance.DataManager) + " took " + changes.Key + " from " + changes.Value);
+                        }
+                    }
                     Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)AccessTools.Field(typeof(SimGameState), "factions").GetValue(__instance);
+                    foreach (KeyValuePair<Faction, FactionDef> pair in factions) {
+                        if (!Helper.IsAtWar(pair.Key) && !Helper.IsExcluded(pair.Key)) {
+                            if (rand.Next(0, 101) > Fields.WarFatique[pair.Key]) {
+                                Faction enemy;
+                                do {
+                                    List<Faction> fac = factions.Keys.ToList();
+                                    enemy = fac[rand.Next(fac.Count)];
+                                } while (Helper.IsExcluded(enemy) || pair.Key == enemy);
+
+                                bool joinedWar = false;
+                                foreach (War war in Fields.currentWars) {
+                                    if (war.attackers.Contains(enemy) && !Fields.removeWars.Contains(war.name)) {
+                                        war.defenders.Add(pair.Key);
+                                        war.monthlyEvents.Add(Helper.GetFactionName(pair.Key, __instance.DataManager) + " joined on the defending side");
+                                        joinedWar = true;
+                                        break;
+                                    }
+                                    else if (war.defenders.Contains(enemy) && !Fields.removeWars.Contains(war.name)) {
+                                        war.attackers.Add(pair.Key);
+                                        war.monthlyEvents.Add(Helper.GetFactionName(pair.Key, __instance.DataManager) + " joined on the attacking side");
+                                        joinedWar = true;
+                                        break;
+                                    }
+                                }
+                                if (!joinedWar) {
+                                    string Name = Helper.GetFactionName(pair.Key, __instance.DataManager) + " VS " + Helper.GetFactionName(enemy, __instance.DataManager);
+                                    War war = new War(Name, new List<Faction>() { pair.Key }, new List<Faction>() { enemy });
+                                    war.monthlyEvents.Add("War started");
+                                    Fields.currentWars.Add(war);
+                                }
+                            }
+                        }
+                        else if (Helper.IsAtWar(pair.Key)) {
+                            Fields.WarFatique[pair.Key] += Fields.settings.FatiqueLostPerMonth;
+                            if (rand.Next(0, 101) < Fields.WarFatique[pair.Key]) {
+                                War war = Helper.getWar(pair.Key);
+                                if (war.duration >= Fields.settings.minMonthDuration) {
+                                    if (war.duration < Fields.settings.maxMonthDuration || Fields.settings.maxMonthDuration == -1) {
+                                        if (!(Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Count <= 0) && !(Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders.Count <= 0)){
+                                            if (Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Contains(pair.Key)) {
+                                                Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Remove(pair.Key);
+                                            }
+                                            else {
+                                                Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders.Remove(pair.Key);
+                                            }
+                                            Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add(Helper.GetFactionName(pair.Key, __instance.DataManager) + " left the war");
+
+                                            if (Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Count <= 0) {
+                                                Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("Attackers lost");
+                                                if (!Fields.removeWars.Contains(war.name)) {
+                                                    Fields.removeWars.Add(war.name);
+                                                }
+                                            }
+                                            else if (Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders.Count <= 0) {
+                                                Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("Defenders lost");
+                                                if (!Fields.removeWars.Contains(war.name)) {
+                                                    Fields.removeWars.Add(war.name);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    else {
+                                        Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("War ended Indecided");
+                                        if (!Fields.removeWars.Contains(war.name)) {
+                                            Fields.removeWars.Add(war.name);
+                                        }
+
+                                    }
+                                }
+                            }
+                        }
+                    }
                     foreach (KeyValuePair<Faction, FactionDef> pair in factions) {
                         if (Fields.currentEnemies.ContainsKey(pair.Key)) {
                             Faction[] enemies = Fields.currentEnemies[pair.Key].ToArray();
                             ReflectionHelper.InvokePrivateMethode(pair.Value, "set_Enemies", new object[] { enemies });
                         }
                     }
-
+                    
                     List<string> changeList = new List<string>();
-                    foreach (KeyValuePair<string, string> changes in Fields.thisMonthChanges) {
-                        StarSystem changedSystem = __instance.StarSystems.Find(x => x.Name.Equals(changes.Key));
-                        if (!Helper.GetFactionName(changedSystem.Owner, __instance.DataManager).Equals(changes.Value)) {
-                            changeList.Add(Helper.GetFactionName(changedSystem.Owner, __instance.DataManager) + " took " + changes.Key + " from " + changes.Value);
-                        }
+                    foreach (War war in Fields.currentWars) {
+                        war.duration += 1;
+                        changeList.Add(war.name + ":");
+                        changeList.Add(string.Join("\n", war.monthlyEvents.ToArray()) + "\n");
+                        war.monthlyEvents.Clear();
                     }
                     if (changeList.Count == 0) {
                         changeList.Add("No changes this month");
@@ -260,17 +335,26 @@ namespace WarTech {
                     SimGameInterruptManager interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(__instance);
                     interruptQueue.QueuePauseNotification("Monthly War Report", string.Join("\n", changeList.ToArray()) + "\n", __instance.GetCrewPortrait(SimGameCrew.Crew_Sumire), string.Empty, null, "Understood", null, string.Empty);
                     if (Fields.settings.debug) {
-                        List<string> factionResourceList = new List<string>();
                         foreach (FactionResources resources in Fields.factionResources) {
-                            factionResourceList.Add(Helper.GetFactionName(resources.faction, __instance.DataManager) + ": \nOffence: " + resources.offence + "\nDefence: " + resources.defence);
+                            changeList.Add(Helper.GetFactionName(resources.faction, __instance.DataManager) + ": \nOffence: " + resources.offence + "\nDefence: " + resources.defence);
                         }
-                        interruptQueue = (SimGameInterruptManager)AccessTools.Field(typeof(SimGameState), "interruptQueue").GetValue(__instance);
-                        interruptQueue.QueuePauseNotification("Monthly Faction Strenght", string.Join("\n", factionResourceList.ToArray()) + "\n", __instance.GetCrewPortrait(SimGameCrew.Crew_Darius), string.Empty, null, "Understood", null, string.Empty);
+                        foreach (KeyValuePair<Faction, float> fatigue in Fields.WarFatique) {
+                            changeList.Add(Helper.GetFactionName(fatigue.Key, __instance.DataManager) + ": \nFatigue: " + fatigue.Value);
+                        }
+                        Logger.LogMonthlyReport(string.Join("\n", changeList.ToArray()) + "\n");
                     }
+                    foreach (string war in Fields.removeWars) {
+                        Fields.currentWars.Remove(Fields.currentWars.Find(x => x.name.Equals(war)));
+                    }
+                    Fields.removeWars.Clear();
+                    Helper.RefreshResources(__instance);
+                    Helper.RefreshEnemies(__instance);
+                    Helper.RefreshTargets(__instance);
                     __instance.StopPlayMode();
                 }
             }
             catch (Exception e) {
+                Logger.LogError(e);
                 Logger.LogError(e);
             }
         }

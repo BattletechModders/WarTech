@@ -12,15 +12,19 @@ using UnityEngine;
 namespace WarTech {
 
     public class SaveFields {
+        public Dictionary<Faction, float> WarFatique = new Dictionary<Faction, float>();
+        public List<War> currentWars = new List<War>();
         public bool warmission = false;
         public List<PlanetControlState> stateOfWar = null;
         public Dictionary<string, string> thisMonthChanges = new Dictionary<string, string>();
         public List<FactionResources> factionResources = null;
-        public SaveFields(List<PlanetControlState> stateOfWar, Dictionary<string, string> thisMonthChanges, List<FactionResources> factionResources, bool warmission) {
+        public SaveFields(List<PlanetControlState> stateOfWar, Dictionary<string, string> thisMonthChanges, List<FactionResources> factionResources, bool warmission, Dictionary<Faction, float> WarFatique, List<War> currentWars) {
             this.stateOfWar = stateOfWar;
             this.thisMonthChanges = thisMonthChanges;
             this.factionResources = factionResources;
             this.warmission = warmission;
+            this.currentWars = currentWars;
+            this.WarFatique = WarFatique;
         }
     }
 
@@ -81,23 +85,37 @@ namespace WarTech {
                         int maxDefence = Mathf.Min(100 - attackerControl.percentage, Fields.factionResources.Find(x => x.faction == initialTarget).defence);
                         int randomAttack = rand.Next(maxAttack) + 1;
                         int randomDefence = rand.Next(maxDefence) + 1;
+                        if (randomAttack > randomDefence) {
+                            if (Fields.WarFatique[initialTarget] < 100) {
+                                Fields.WarFatique[initialTarget] += Fields.settings.FatiquePerLostAttack;
+                            }
+                        }
+                        else {
+                            if (Fields.WarFatique[benefactor] < 100) {
+                                Fields.WarFatique[benefactor] += Fields.settings.FatiquePerLostAttack;
+                            }
+                        }
                         percentageLeft = Mathf.Max(0, randomAttack - randomDefence);
                         Fields.factionResources.Find(x => x.faction == benefactor).offence -= randomAttack;
                         Fields.factionResources.Find(x => x.faction == initialTarget).defence -= randomDefence;
                         if (Fields.settings.debug) {
                             Logger.LogAttacks(system.Name, benefactor, randomAttack, initialTarget, randomDefence);
                         }
-                    } else {
-                        if (Fields.factionResources.Find(x => x.faction == benefactor).offence > 0) {
-                            percentageLeft = 0;
-                        } else {
-                            int attack = Mathf.Min(100 - attackerControl.percentage, Fields.factionResources.Find(x => x.faction == benefactor).offence);
-                            percentageLeft = attack;
-                            Fields.factionResources.Find(x => x.faction == benefactor).offence -= attack;
-                        }
                     }
+                    else if (Fields.factionResources.Find(x => x.faction == benefactor).offence > 0) {
+                        percentageLeft = 0;
+                    }
+                    else {
+                        if (Fields.WarFatique[initialTarget] < 100) {
+                            Fields.WarFatique[initialTarget] += Fields.settings.FatiquePerLostAttack;
+                        }
+                        int attack = Mathf.Min(100 - attackerControl.percentage, Fields.factionResources.Find(x => x.faction == benefactor).offence);
+                        percentageLeft = attack;
+                        Fields.factionResources.Find(x => x.faction == benefactor).offence -= attack;
+                    }
+
                 }
-                
+
                 do {
                     highestControl = planetState.factionList.FirstOrDefault(x => x.faction == initialTarget);
                     if (highestControl.percentage == 0) {
@@ -294,40 +312,38 @@ namespace WarTech {
         public static void RefreshEnemies(SimGameState Sim) {
             try {
                 Fields.currentEnemies = new Dictionary<Faction, List<Faction>>();
-                foreach (StarSystem system in Sim.StarSystems) {
-                    if (!IsExcluded(system.Owner)) {
-                        foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                            if (system.Owner != neigbourSystem.Owner) {
-                                List<Faction> enemies;
-                                if (Fields.currentEnemies.ContainsKey(system.Owner)) {
-                                    enemies = Fields.currentEnemies[system.Owner];
+                foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
+                    if (!IsExcluded(pair.Key)) {
+                        List<Faction> enemies = new List<Faction>();
+                        enemies.Add(Faction.Locals);
+                        enemies.Add(Faction.AuriganPirates);
+                        foreach (War war in Fields.currentWars) {
+                            if (war.attackers.Contains(pair.Key)) {
+                                foreach (Faction faction in war.defenders) {
+                                    if (!enemies.Contains(faction)) {
+                                        enemies.Add(faction);
+                                    }
                                 }
-                                else {
-                                    enemies = new List<Faction>();
-                                }
-
-                                if (!enemies.Contains(neigbourSystem.Owner)) {
-                                    enemies.Add(neigbourSystem.Owner);
-                                }
-
-                                if (Fields.currentEnemies.ContainsKey(system.Owner)) {
-                                    Fields.currentEnemies[system.Owner] = enemies;
-                                }
-                                else {
-                                    Fields.currentEnemies.Add(system.Owner, enemies);
+                            }
+                            else if (war.defenders.Contains(pair.Key)) {
+                                foreach (Faction faction in war.attackers) {
+                                    if (!enemies.Contains(faction)) {
+                                        enemies.Add(faction);
+                                    }
                                 }
                             }
                         }
+                        Fields.currentEnemies.Add(pair.Key, enemies);
                     }
                     else {
-                        if (!Fields.currentEnemies.ContainsKey(system.Owner)) {
+                        if (!Fields.currentEnemies.ContainsKey(pair.Key)) {
                             List<Faction> enemies = new List<Faction>();
-                            foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
-                                if (pair.Key != system.Owner) {
-                                    enemies.Add(pair.Key);
+                            foreach (KeyValuePair<Faction, FactionDef> pair2 in Sim.FactionsDict) {
+                                if (pair2.Key != pair.Key) {
+                                    enemies.Add(pair2.Key);
                                 }
                             }
-                            Fields.currentEnemies.Add(system.Owner, enemies);
+                            Fields.currentEnemies.Add(pair.Key, enemies);
                         }
                     }
                 }
@@ -426,6 +442,21 @@ namespace WarTech {
             }
         }
 
+        public static War getWar(Faction faction) {
+            try {
+                foreach (War war in Fields.currentWars) {
+                    if (war.attackers.Contains(faction) || war.defenders.Contains(faction)) {
+                        return war;
+                    }
+                }
+                return null;
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return null;
+            }
+        }
+
         public static void RefreshTargets(SimGameState Sim) {
             try {
                 Fields.availableTargets = new Dictionary<Faction, List<TargetSystem>>();
@@ -437,7 +468,7 @@ namespace WarTech {
                 if (Sim.Starmap != null) {
                     foreach (StarSystem system in Sim.StarSystems) {
                         foreach (StarSystem neighbour in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                            if (system.Owner != neighbour.Owner) {
+                            if (system.Owner != neighbour.Owner && Fields.currentEnemies[system.Owner].Contains(neighbour.Owner)) {
                                 if (!IsExcluded(neighbour.Owner) && !IsExcluded(system.Owner)) {
                                     TargetSystem target;
                                     if (!Fields.availableTargets.ContainsKey(system.Owner)) {
@@ -494,7 +525,7 @@ namespace WarTech {
                     targets.Add(Faction.AuriganPirates);
                     targets.Add(system.Owner);
                     foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                        if (system.Owner != neigbourSystem.Owner && !targets.Contains(neigbourSystem.Owner) && !IsExcluded(neigbourSystem.Owner) ) {
+                        if (system.Owner != neigbourSystem.Owner && !targets.Contains(neigbourSystem.Owner) && !IsExcluded(neigbourSystem.Owner)) {
                             targets.Add(neigbourSystem.Owner);
                         }
                     }
@@ -568,6 +599,23 @@ namespace WarTech {
             }
         }
 
+        public static bool IsAtWar(Faction faction) {
+            try {
+                bool result = false;
+                foreach (War war in Fields.currentWars) {
+                    if (war.attackers.Contains(faction) || war.defenders.Contains(faction)) {
+                        result = true;
+                        break;
+                    }
+                }
+                return result;
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return false;
+            }
+        }
+
         public static void SaveState(string instanceGUID, DateTime saveTime) {
             try {
                 int unixTimestamp = (int)(saveTime.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
@@ -575,7 +623,7 @@ namespace WarTech {
                 string filePath = baseDirectory + $"/ModSaves/WarTech/" + instanceGUID + "-" + unixTimestamp + ".json";
                 (new FileInfo(filePath)).Directory.Create();
                 using (StreamWriter writer = new StreamWriter(filePath, true)) {
-                    SaveFields fields = new SaveFields(Fields.stateOfWar, Fields.thisMonthChanges, Fields.factionResources, Fields.warmission);
+                    SaveFields fields = new SaveFields(Fields.stateOfWar, Fields.thisMonthChanges, Fields.factionResources, Fields.warmission, Fields.WarFatique, Fields.currentWars);
                     string json = JsonConvert.SerializeObject(fields);
                     writer.Write(json);
                 }
@@ -598,6 +646,8 @@ namespace WarTech {
                         Fields.thisMonthChanges = save.thisMonthChanges;
                         Fields.factionResources = save.factionResources;
                         Fields.warmission = save.warmission;
+                        Fields.WarFatique = save.WarFatique;
+                        Fields.currentWars = save.currentWars;
                     }
                 }
             }

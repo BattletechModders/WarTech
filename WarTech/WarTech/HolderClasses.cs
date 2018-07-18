@@ -4,13 +4,16 @@ using System.Collections.Generic;
 
 namespace WarTech {
     public class Settings {
-        public int AttackPercentagePerTick = 1;
         public int AttackPercentagePerPlayerMission = 10;
-        public int SystemsPerTick = 100;
         public List<string> excludedFactionNames = new List<string>();
         public int PercentageForControl = 30;
         public int WeightOfNeighbours = 1;
+        public int minMonthDuration = 1;
+        public int maxMonthDuration = -1;
         public float priorityContactPayPercentage = 1.5f;
+        public float FatiquePerLostAttack = 0.5f;
+        public float FatiqueLostPerMonth = 3f;
+        public float FatiqueRecoveredPerDay = 0.5f;
         public bool debug = false;
     }
 
@@ -22,6 +25,22 @@ namespace WarTech {
         public static Settings settings;
         public static Dictionary<Faction, List<TargetSystem>> availableTargets = new Dictionary<Faction, List<TargetSystem>>();
         public static bool warmission = false;
+        public static Dictionary<Faction, float> WarFatique = null;
+        public static List<War> currentWars = new List<War>();
+        public static List<string> removeWars = new List<string>();
+    }
+
+    public class War {
+        public string name;
+        public List<Faction> attackers = new List<Faction>();
+        public List<Faction> defenders = new List<Faction>();
+        public List<string> monthlyEvents = new List<string>();
+        public int duration = 0;
+        public War(string name, List<Faction> attackers, List<Faction> defenders) {
+            this.name = name;
+            this.attackers = attackers;
+            this.defenders = defenders;
+        }
     }
 
     public class TargetSystem {
