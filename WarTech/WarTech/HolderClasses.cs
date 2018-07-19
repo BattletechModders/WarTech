@@ -28,6 +28,7 @@ namespace WarTech {
         public static Dictionary<Faction, float> WarFatique = null;
         public static List<War> currentWars = new List<War>();
         public static List<string> removeWars = new List<string>();
+        public static Dictionary<Faction, List<Faction>> neighbourFactions = new Dictionary<Faction, List<Faction>>();
     }
 
     public class War {

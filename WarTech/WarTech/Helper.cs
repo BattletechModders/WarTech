@@ -466,19 +466,28 @@ namespace WarTech {
                     }
                 }
                 if (Sim.Starmap != null) {
+                    Fields.neighbourFactions = new Dictionary<Faction, List<Faction>>();
                     foreach (StarSystem system in Sim.StarSystems) {
                         foreach (StarSystem neighbour in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                            if (system.Owner != neighbour.Owner && Fields.currentEnemies[system.Owner].Contains(neighbour.Owner)) {
-                                if (!IsExcluded(neighbour.Owner) && !IsExcluded(system.Owner)) {
-                                    TargetSystem target;
-                                    if (!Fields.availableTargets.ContainsKey(system.Owner)) {
-                                        Fields.availableTargets.Add(system.Owner, new List<TargetSystem>());
-                                    }
-                                    target = Fields.availableTargets[system.Owner].Find(x => x.system == neighbour);
-                                    if (target == null) {
-                                        target = new TargetSystem(neighbour, new Dictionary<Faction, int>());
-                                        target.CalculateNeighbours(Sim);
-                                        Fields.availableTargets[system.Owner].Add(target);
+                            if (system.Owner != neighbour.Owner) {
+                                if (!Fields.neighbourFactions.ContainsKey(system.Owner)) {
+                                    Fields.neighbourFactions.Add(system.Owner, new List<Faction>());
+                                }
+                                if (!Fields.neighbourFactions[system.Owner].Contains(neighbour.Owner)) {
+                                    Fields.neighbourFactions[system.Owner].Add(neighbour.Owner);
+                                }
+                                if (Fields.currentEnemies[system.Owner].Contains(neighbour.Owner)) {
+                                    if (!IsExcluded(neighbour.Owner) && !IsExcluded(system.Owner)) {
+                                        TargetSystem target;
+                                        if (!Fields.availableTargets.ContainsKey(system.Owner)) {
+                                            Fields.availableTargets.Add(system.Owner, new List<TargetSystem>());
+                                        }
+                                        target = Fields.availableTargets[system.Owner].Find(x => x.system == neighbour);
+                                        if (target == null) {
+                                            target = new TargetSystem(neighbour, new Dictionary<Faction, int>());
+                                            target.CalculateNeighbours(Sim);
+                                            Fields.availableTargets[system.Owner].Add(target);
+                                        }
                                     }
                                 }
                             }

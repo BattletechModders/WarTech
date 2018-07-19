@@ -243,11 +243,14 @@ namespace WarTech {
                     }
                     Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)AccessTools.Field(typeof(SimGameState), "factions").GetValue(__instance);
                     foreach (KeyValuePair<Faction, FactionDef> pair in factions) {
-                        if (!Helper.IsAtWar(pair.Key) && !Helper.IsExcluded(pair.Key)) {
+                        List<Faction> fac = null;
+                        if (Fields.neighbourFactions.ContainsKey(pair.Key)){
+                            fac = Fields.neighbourFactions[pair.Key];
+                        }
+                        if (!Helper.IsAtWar(pair.Key) && !Helper.IsExcluded(pair.Key) && fac != null && fac.Count > 0) {
                             if (rand.Next(0, 101) > Fields.WarFatique[pair.Key]) {
                                 Faction enemy;
                                 do {
-                                    List<Faction> fac = factions.Keys.ToList();
                                     enemy = fac[rand.Next(fac.Count)];
                                 } while (Helper.IsExcluded(enemy) || pair.Key == enemy);
 
@@ -280,7 +283,7 @@ namespace WarTech {
                                 War war = Helper.getWar(pair.Key);
                                 if (war.duration >= Fields.settings.minMonthDuration) {
                                     if (war.duration < Fields.settings.maxMonthDuration || Fields.settings.maxMonthDuration == -1) {
-                                        if (!(Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Count <= 0) && !(Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders.Count <= 0)){
+                                        if (!(Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Count <= 0) && !(Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders.Count <= 0)) {
                                             if (Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Contains(pair.Key)) {
                                                 Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Remove(pair.Key);
                                             }
@@ -320,7 +323,7 @@ namespace WarTech {
                             ReflectionHelper.InvokePrivateMethode(pair.Value, "set_Enemies", new object[] { enemies });
                         }
                     }
-                    
+
                     List<string> changeList = new List<string>();
                     foreach (War war in Fields.currentWars) {
                         war.duration += 1;
