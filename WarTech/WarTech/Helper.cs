@@ -386,13 +386,13 @@ namespace WarTech {
                 }
                 if (IsBorder(system, Sim) && Sim.Starmap != null) {
                     system.Tags.Add("planet_other_battlefield");
-                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { 2 });
+                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { Fields.settings.BorderPlanetDifficulty });
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_UseMaxContractOverride", new object[] { true });
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_MaxContractOverride", new object[] { Sim.Constants.Story.MaxContractsPerSystem + Sim.Constants.Story.MaxContractsPerSystem / 2 });
                 }
                 else {
                     system.Tags.Remove("planet_other_battlefield");
-                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { 0 });
+                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { Fields.settings.InlandPlanetDifficulty });
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_UseMaxContractOverride", new object[] { false });
                 }
                 ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractEmployers", new object[] { GetEmployees(system, Sim) });
