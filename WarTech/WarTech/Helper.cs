@@ -608,6 +608,16 @@ namespace WarTech {
             }
         }
 
+        public static string GetFactionShortName(Faction faction, DataManager manager) {
+            try {
+                return FactionDef.GetFactionDefByEnum(manager, faction).ShortName;
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return null;
+            }
+        }
+
         public static bool IsAtWar(Faction faction) {
             try {
                 bool result = false;

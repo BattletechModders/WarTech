@@ -271,7 +271,7 @@ namespace WarTech {
                                     }
                                 }
                                 if (!joinedWar) {
-                                    string Name = Helper.GetFactionName(pair.Key, __instance.DataManager) + " VS " + Helper.GetFactionName(enemy, __instance.DataManager);
+                                    string Name = Helper.GetFactionShortName(pair.Key, __instance.DataManager) + " VS " + Helper.GetFactionShortName(enemy, __instance.DataManager);
                                     War war = new War(Name, new List<Faction>() { pair.Key }, new List<Faction>() { enemy });
                                     war.monthlyEvents.Add(Helper.GetFactionName(pair.Key, __instance.DataManager) + " declared war on " + Helper.GetFactionName(enemy, __instance.DataManager) + ".");
                                     Fields.currentWars.Add(war);
@@ -336,8 +336,7 @@ namespace WarTech {
                         foreach (Faction fac in war.defenders) {
                             war.monthlyEvents.Add(Helper.GetFactionName(fac, __instance.DataManager) + " | Exhaustion: " + Fields.WarFatique[fac] + "%");
                         }
-                        interruptQueue.QueuePauseNotification(war.name + "(Month: "+(war.duration)+")", string.Join("\n", war.monthlyEvents.ToArray()) + "\n", __instance.GetCrewPortrait(SimGameCrew.Crew_Sumire), string.Empty);
-                        war.monthlyEvents.Clear();
+                        interruptQueue.QueueGenericPopup_NonImmediate(war.name, string.Join("\n", war.monthlyEvents.ToArray()) + "\n", true); war.monthlyEvents.Clear();
                     }
                     Fields.thisMonthChanges = new Dictionary<string, string>();
                     foreach (string war in Fields.removeWars) {
