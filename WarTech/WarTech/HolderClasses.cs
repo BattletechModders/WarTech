@@ -12,7 +12,7 @@ namespace WarTech {
         public int maxMonthDuration = -1;
         public int InlandPlanetDifficulty = 0;
         public int BorderPlanetDifficulty = 2;
-        public float priorityContactPayPercentage = 1.5f;
+        public float priorityContactPayPercentage = 2f;
         public float FatiquePerLostAttack = 0.5f;
         public float FatiqueLostPerMonth = 3f;
         public float FatiqueRecoveredPerDay = 0.5f;
