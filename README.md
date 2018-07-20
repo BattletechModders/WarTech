@@ -16,6 +16,7 @@ BattleTech mod (using ModTek), that enables factions on the map to war each othe
 - Border planets have higher difficulty
 - Contract targets depend on neighbour planets
 - If you are liked by a Faction they offer you good paying priority contracts for target planets
+Check [WarMechanics](https://github.com/Morphyum/WarTech/wiki/WarMechanics) for more info.
 
 ## Download
 Downloads can be found on [github](https://github.com/Morphyum/WarTech/releases).
