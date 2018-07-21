@@ -211,27 +211,47 @@ namespace WarTech {
         }
 
         public static void RefreshResources(SimGameState Sim) {
-            foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
-                if (!IsExcluded(pair.Key)) {
-                    if (Fields.factionResources.Find(x => x.faction == pair.Key) == null) {
-                        Fields.factionResources.Add(new FactionResources(pair.Key, 0, 0));
+            try {
+                foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
+                    if (!IsExcluded(pair.Key)) {
+                        if (Fields.factionResources.Find(x => x.faction == pair.Key) == null) {
+                            Fields.factionResources.Add(new FactionResources(pair.Key, 0, 0));
+                        }
+                        else {
+                            FactionResources resources = Fields.factionResources.Find(x => x.faction == pair.Key);
+                            resources.offence = 0;
+                            resources.defence = 0;
+                        }
                     }
-                    else {
-                        FactionResources resources = Fields.factionResources.Find(x => x.faction == pair.Key);
-                        resources.offence = 0;
-                        resources.defence = 0;
+                    if (Fields.factionResources.Find(x => x.faction == Faction.Locals) == null) {
+                        Fields.factionResources.Add(new FactionResources(Faction.Locals, 0, 0));
                     }
                 }
-                if (Fields.factionResources.Find(x => x.faction == Faction.Locals) == null) {
-                    Fields.factionResources.Add(new FactionResources(Faction.Locals, 0, 0));
+                foreach (StarSystem system in Sim.StarSystems) {
+                    FactionResources resources = Fields.factionResources.Find(x => x.faction == system.Owner);
+                    if (resources != null && !IsExcluded(resources.faction)) {
+                        resources.offence += GetOffenceValue(system);
+                        resources.defence += GetDefenceValue(system);
+                    }
                 }
             }
-            foreach (StarSystem system in Sim.StarSystems) {
-                FactionResources resources = Fields.factionResources.Find(x => x.faction == system.Owner);
-                if (resources != null && !IsExcluded(resources.faction)) {
-                    resources.offence += GetOffenceValue(system);
-                    resources.defence += GetDefenceValue(system);
+            catch (Exception ex) {
+                Logger.LogError(ex);
+            }
+        }
+
+        public static int GetNeighborValue(Dictionary<Faction, int> factionNeighbours, Faction key) {
+            try {
+                if (factionNeighbours.ContainsKey(key)) {
+                    return factionNeighbours[key];
                 }
+                else {
+                    return 0;
+                }
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return 0;
             }
         }
 
@@ -370,19 +390,31 @@ namespace WarTech {
         public static StarSystem ChangeOwner(StarSystem system, FactionControl control, SimGameState Sim, bool battle) {
             try {
                 if (battle) {
+                    Faction oldOwner = system.Owner;
+                    Faction newOwner = control.faction;
+                    TargetSystem target = null;
                     if (control.faction != Faction.Locals && Fields.availableTargets.Count > 0) {
-                        TargetSystem target = Fields.availableTargets[control.faction].Find(x => x.system == system);
-                        Fields.availableTargets[control.faction].Remove(target);
-                        target.CalculateNeighbours(Sim);
-                        Fields.availableTargets[system.Owner].Add(target);
+                        target = Fields.availableTargets[newOwner].Find(x => x.system == system);
+                        Fields.availableTargets[newOwner].Remove(target);
                     }
-                    string factiontag = GetFactionTag(system.Owner);
+                    string factiontag = GetFactionTag(oldOwner);
                     if (!string.IsNullOrEmpty(factiontag))
                         system.Tags.Remove(factiontag);
-                    factiontag = GetFactionTag(control.faction);
+                    factiontag = GetFactionTag(newOwner);
                     if (!string.IsNullOrEmpty(factiontag))
                         system.Tags.Add(factiontag);
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_Owner", new object[] { control.faction });
+                    if (target != null) {
+                        target = new TargetSystem(system, new Dictionary<Faction, int>());
+                        target.CalculateNeighbours(Sim);
+                        if (Fields.availableTargets[oldOwner].Find(x => x.system.Name == system.Name) != null) {
+                            int index = Fields.availableTargets[oldOwner].FindIndex(x => x.system.Name == system.Name);
+                            Fields.availableTargets[oldOwner][index] = target;
+                        }
+                        else {
+                            Fields.availableTargets[oldOwner].Add(target);
+                        }
+                    }
                 }
                 if (IsBorder(system, Sim) && Sim.Starmap != null) {
                     system.Tags.Add("planet_other_battlefield");
