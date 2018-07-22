@@ -314,13 +314,13 @@ namespace WarTech {
                                             Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " left the war.");
 
                                             if (Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Count <= 0) {
-                                                Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<b>The attacking side lost the war.</b>");
+                                                Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<b>Attacking side lost the war.</b>");
                                                 if (!Fields.removeWars.Contains(war.name)) {
                                                     Fields.removeWars.Add(war.name);
                                                 }
                                             }
                                             else if (Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders.Count <= 0) {
-                                                Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<b>The defending side lost the war.</b>");
+                                                Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<b>Defending side lost the war.</b>");
                                                 if (!Fields.removeWars.Contains(war.name)) {
                                                     Fields.removeWars.Add(war.name);
                                                 }
