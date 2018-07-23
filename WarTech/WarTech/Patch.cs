@@ -12,6 +12,36 @@ using UnityEngine;
 
 namespace WarTech {
 
+    [HarmonyPatch(typeof(StarSystem), "ResetContracts")]
+    public static class StarSystem_ResetContracts_Patch {
+        static void Postfix(StarSystem __instance) {
+            try {
+                AccessTools.Field(typeof(SimGameState), "globalContracts").SetValue(__instance.Sim, new List<Contract>());
+            }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(SimGameState), "Rehydrate")]
+    public static class SimGameState_Rehydrate_Patch {
+        static void Postfix(SimGameState __instance, GameInstanceSave gameInstanceSave) {
+            try {
+                foreach(Contract contract in __instance.GlobalContracts) {
+                   // string OverrideID = (string)AccessTools.Field(typeof(Contract), "OverrideID").GetValue(contract);
+                   // AccessTools.Field(typeof(Contract), "Override").SetValue(contract, contract.DataManager.ContractOverrides.Get(OverrideID).Copy());
+                    contract.Override.contractDisplayStyle = ContractDisplayStyle.BaseCampaignStory;
+                    int maxPriority = Mathf.FloorToInt(7 / __instance.Constants.Salvage.PrioritySalvageModifier);
+                    contract.Override.salvagePotential = Mathf.Min(maxPriority, Mathf.RoundToInt(contract.Override.salvagePotential * Fields.settings.priorityContactPayPercentage));
+                    contract.Override.negotiatedSalvage = 1f;
+                }
+            }
+            catch (Exception e) {
+                Logger.LogError(e);
+            }
+        }
+    }
     [HarmonyPatch(typeof(SimGameState), "AddPredefinedContract")]
     public static class SimGameState_AddPredefinedContract_Patch {
         static void Postfix(SimGameState __instance, Contract __result) {
@@ -80,11 +110,11 @@ namespace WarTech {
                             Contract contract = Helper.GetNewWarContract(__instance.Sim, targets[i].system.Def.Difficulty, pair.Key, targets[i].system.Owner, targets[i].system);
                             contract.Override.contractDisplayStyle = ContractDisplayStyle.BaseCampaignStory;
                             contract.SetInitialReward(Mathf.RoundToInt(contract.InitialContractValue * Fields.settings.priorityContactPayPercentage));
-                            contract.Override.salvagePotential = Mathf.RoundToInt(contract.Override.salvagePotential * Fields.settings.priorityContactPayPercentage);
+                            int maxPriority = Mathf.FloorToInt(7 / __instance.Sim.Constants.Salvage.PrioritySalvageModifier);
+                            contract.Override.salvagePotential = Mathf.Min(maxPriority, Mathf.RoundToInt(contract.Override.salvagePotential * Fields.settings.priorityContactPayPercentage));
                             contract.Override.negotiatedSalvage = 1f;
                             __instance.Sim.GlobalContracts.Add(contract);
                         }
-
                     }
                 }
             }
@@ -175,7 +205,7 @@ namespace WarTech {
                         }
                     }
                     StarSystem system2 = simGame.StarSystems.Find(x => x.Name.Equals(system.Name));
-                    system2 = Helper.ChangeOwner(system, factionControl, simGame, battle);
+                    system2 = Helper.ChangeOwner(system, factionControl, simGame, battle, false);
                     system2 = Helper.ChangeWarDescription(system2, simGame);
                 }
 
@@ -241,7 +271,7 @@ namespace WarTech {
                         if (!Helper.GetFactionName(changedSystem.Owner, __instance.DataManager).Equals(changes.Value)) {
                             War war = Helper.getWar(changedSystem.Owner);
                             if (war != null) {
-                                if (war.attackers.Contains(changedSystem.Owner)) {
+                                if (war.attackers.ContainsKey(changedSystem.Owner)) {
                                     war.monthlyEvents.Add("<color=" + Fields.settings.attackercolor + ">" + Helper.GetFactionName(changedSystem.Owner, __instance.DataManager) + "</color>" + " took " + "<color=" + Fields.settings.planetcolor + ">" + changes.Key + "</color>" + " from " + "<color=" + Fields.settings.defendercolor + ">" + changes.Value + "</color>" + ".");
                                 }
                                 else {
@@ -250,7 +280,7 @@ namespace WarTech {
                             }
                         }
                     }
-                    foreach(War war in Fields.currentWars) {
+                    foreach (War war in Fields.currentWars) {
                         war.monthlyEvents.Add("\n");
                     }
                     Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)AccessTools.Field(typeof(SimGameState), "factions").GetValue(__instance);
@@ -268,14 +298,14 @@ namespace WarTech {
 
                                 bool joinedWar = false;
                                 foreach (War war in Fields.currentWars) {
-                                    if (war.attackers.Contains(enemy) && !Fields.removeWars.Contains(war.name)) {
-                                        war.defenders.Add(pair.Key);
+                                    if (war.attackers.ContainsKey(enemy) && !Fields.removeWars.Contains(war.name)) {
+                                        war.defenders.Add(pair.Key, new WarProgression(new Dictionary<string, Faction>()));
                                         war.monthlyEvents.Add("<color=" + Fields.settings.defendercolor + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " joined the war.");
                                         joinedWar = true;
                                         break;
                                     }
-                                    else if (war.defenders.Contains(enemy) && !Fields.removeWars.Contains(war.name)) {
-                                        war.attackers.Add(pair.Key);
+                                    else if (war.defenders.ContainsKey(enemy) && !Fields.removeWars.Contains(war.name)) {
+                                        war.attackers.Add(pair.Key, new WarProgression(new Dictionary<string, Faction>()));
                                         war.monthlyEvents.Add("<color=" + Fields.settings.attackercolor + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " joined the war.");
                                         joinedWar = true;
                                         break;
@@ -283,7 +313,11 @@ namespace WarTech {
                                 }
                                 if (!joinedWar) {
                                     string Name = Helper.GetFactionShortName(pair.Key, __instance.DataManager) + " VS " + Helper.GetFactionShortName(enemy, __instance.DataManager);
-                                    War war = new War(Name, new List<Faction>() { pair.Key }, new List<Faction>() { enemy });
+                                    Dictionary<Faction, WarProgression> attackers = new Dictionary<Faction, WarProgression>();
+                                    attackers.Add(pair.Key, new WarProgression(new Dictionary<string, Faction>()));
+                                    Dictionary<Faction, WarProgression> defenders = new Dictionary<Faction, WarProgression>();
+                                    defenders.Add(enemy, new WarProgression(new Dictionary<string, Faction>()));
+                                    War war = new War(Name, attackers, defenders);
                                     war.monthlyEvents.Add("<color=" + Fields.settings.attackercolor + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " declared war on " + "<color=" + Fields.settings.defendercolor + ">" + Helper.GetFactionName(enemy, __instance.DataManager) + "</color>" + ".\n");
                                     if (Fields.currentWars.Contains(war)) {
                                         Logger.LogLine(war.name + "already exists");
@@ -303,24 +337,61 @@ namespace WarTech {
                                     if (war.duration < Fields.settings.maxMonthDuration || Fields.settings.maxMonthDuration == -1) {
                                         if (!(Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Count <= 0) && !(Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders.Count <= 0)) {
                                             string color = "";
-                                            if (Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Contains(pair.Key)) {
+                                            if (Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.ContainsKey(pair.Key)) {
                                                 color = Fields.settings.attackercolor;
+                                                Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " surrendered.");
+                                                foreach (KeyValuePair<string, Faction> taken in Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers[pair.Key].takenPlanets) {
+                                                    if (war.defenders.ContainsKey(taken.Value)) {
+                                                        StarSystem changedSystem = __instance.StarSystems.Find(x => x.Name.Equals(taken.Key));
+                                                        PlanetControlState planetState = Fields.stateOfWar.FirstOrDefault(x => x.system.Equals(changedSystem.Name));
+                                                        FactionControl oldControl = planetState.factionList.FirstOrDefault(x => x.faction == pair.Key);
+                                                        int percentage = oldControl.percentage;
+                                                        oldControl.percentage = 0;
+                                                        FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == taken.Value);
+                                                        ownerControl.percentage += percentage;
+                                                        changedSystem = Helper.ChangeOwner(changedSystem, ownerControl, __instance, true, true);
+                                                        changedSystem = Helper.ChangeWarDescription(changedSystem, __instance);
+                                                        Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " returned " + "<color=" + Fields.settings.planetcolor + ">" + changedSystem.Name + "</color>" + " to " + "<color=" + Fields.settings.defendercolor + ">" + Helper.GetFactionName(taken.Value, __instance.DataManager) + "</color>");
+                                                    }
+                                                }
                                                 Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Remove(pair.Key);
                                             }
                                             else {
                                                 color = Fields.settings.defendercolor;
+                                                Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " surrendered.");
+                                                foreach (KeyValuePair<string, Faction> taken in Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders[pair.Key].takenPlanets) {
+                                                    if (war.attackers.ContainsKey(taken.Value)) {
+                                                        StarSystem changedSystem = __instance.StarSystems.Find(x => x.Name.Equals(taken.Key));
+                                                        PlanetControlState planetState = Fields.stateOfWar.FirstOrDefault(x => x.system.Equals(changedSystem.Name));
+                                                        FactionControl oldControl = planetState.factionList.FirstOrDefault(x => x.faction == pair.Key);
+                                                        int percentage = oldControl.percentage;
+                                                        oldControl.percentage = 0;
+                                                        FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == taken.Value);
+                                                        ownerControl.percentage += percentage;
+                                                        changedSystem = Helper.ChangeOwner(changedSystem, ownerControl, __instance, true, true);
+                                                        changedSystem = Helper.ChangeWarDescription(changedSystem, __instance);
+                                                        Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " returned " + "<color=" + Fields.settings.planetcolor + ">" + changedSystem.Name + "</color>" + " to " + "<color=" + Fields.settings.attackercolor + ">" + Helper.GetFactionName(taken.Value, __instance.DataManager) + "</color>");
+                                                    }
+                                                }
                                                 Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders.Remove(pair.Key);
                                             }
-                                            Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " left the war.");
 
                                             if (Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Count <= 0) {
                                                 Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<b>Attacking side lost the war.</b>");
+                                                foreach(KeyValuePair<Faction, WarProgression> defender in Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders) {
+                                                    int count = Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders[defender.Key].takenPlanets.Count;
+                                                    Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + Fields.settings.defendercolor + ">" + Helper.GetFactionName(defender.Key, __instance.DataManager) + "</color>" + " took " + "<color=" + Fields.settings.planetcolor + ">" + count + "</color>"  + " systems in the war.");
+                                                }
                                                 if (!Fields.removeWars.Contains(war.name)) {
                                                     Fields.removeWars.Add(war.name);
                                                 }
                                             }
                                             else if (Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders.Count <= 0) {
                                                 Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<b>Defending side lost the war.</b>");
+                                                foreach (KeyValuePair<Faction, WarProgression> attackers in Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers) {
+                                                    int count = Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers[attackers.Key].takenPlanets.Count;
+                                                    Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + Fields.settings.attackercolor + ">" + Helper.GetFactionName(attackers.Key, __instance.DataManager) + "</color>" + " took " + "<color=" + Fields.settings.planetcolor + ">" + count + "</color>" + "systems in the war.");
+                                                }
                                                 if (!Fields.removeWars.Contains(war.name)) {
                                                     Fields.removeWars.Add(war.name);
                                                 }
@@ -350,16 +421,16 @@ namespace WarTech {
                         war.duration += 1;
                         if (!Fields.removeWars.Contains(war.name)) {
                             war.monthlyEvents.Add("<color=" + Fields.settings.attackercolor + ">" + "\nAttackers:" + "</color>");
-                            foreach (Faction fac in war.attackers) {
+                            foreach (Faction fac in war.attackers.Keys) {
                                 war.monthlyEvents.Add(Helper.GetFactionName(fac, __instance.DataManager) + " | Exhaustion: " + Fields.WarFatique[fac] + "%");
                             }
                             war.monthlyEvents.Add("<color=" + Fields.settings.defendercolor + ">" + "\nDefenders:" + "</color>");
-                            foreach (Faction fac in war.defenders) {
+                            foreach (Faction fac in war.defenders.Keys) {
                                 war.monthlyEvents.Add(Helper.GetFactionName(fac, __instance.DataManager) + " | Exhaustion: " + Fields.WarFatique[fac] + "%");
                             }
                         }
-                        for(int i = 0; i < war.monthlyEvents.Count; i++) {
-                            war.monthlyEvents[i] = war.monthlyEvents[i].Replace("the ", "").Replace("The ", "");
+                        for (int i = 0; i < war.monthlyEvents.Count; i++) {
+                            war.monthlyEvents[i] = war.monthlyEvents[i];
                         }
                         interruptQueue.QueueGenericPopup_NonImmediate(war.name, string.Join("\n", war.monthlyEvents.ToArray()) + "\n", true); war.monthlyEvents.Clear();
                     }

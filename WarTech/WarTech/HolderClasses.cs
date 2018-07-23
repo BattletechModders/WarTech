@@ -16,6 +16,7 @@ namespace WarTech {
         public float FatiquePerLostAttack = 0.5f;
         public float FatiqueLostPerMonth = 3f;
         public float FatiqueRecoveredPerDay = 0.5f;
+        public float FatiqueRecoveredPerPlanetCapture = 3f;
         public string attackercolor = "#ee0000ff";
         public string defendercolor = "#00bb00ff";
         public string planetcolor = "#00ffffff";
@@ -38,14 +39,24 @@ namespace WarTech {
 
     public class War {
         public string name;
-        public List<Faction> attackers = new List<Faction>();
-        public List<Faction> defenders = new List<Faction>();
+        public Dictionary<Faction, WarProgression> attackers = new Dictionary<Faction,WarProgression>();
+        public Dictionary<Faction, WarProgression> defenders = new Dictionary<Faction, WarProgression>();
         public List<string> monthlyEvents = new List<string>();
         public int duration = 0;
-        public War(string name, List<Faction> attackers, List<Faction> defenders) {
+        public War(string name, Dictionary<Faction, WarProgression> attackers, Dictionary<Faction, WarProgression> defenders) {
             this.name = name;
             this.attackers = attackers;
             this.defenders = defenders;
+        }
+    }
+
+    public class WarProgression {
+
+        //systemName , Original Owner
+        public Dictionary<string, Faction> takenPlanets;
+
+        public WarProgression(Dictionary<string, Faction> takenPlanets) {
+            this.takenPlanets = takenPlanets;
         }
     }
 

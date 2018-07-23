@@ -188,8 +188,9 @@ namespace WarTech {
                         Fields.thisMonthChanges.Add(system.Name, Helper.GetFactionName(system.Owner, Sim.DataManager));
                     }
                     if (newowner.percentage >= Fields.settings.PercentageForControl) {
-                        system = Helper.ChangeOwner(system, newowner, Sim, true);
+                        system = Helper.ChangeOwner(system, newowner, Sim, true, false);
                         planetState.owner = newowner.faction;
+                        Fields.WarFatique[newowner.faction] = Mathf.Max(0, Fields.WarFatique[newowner.faction] - Fields.settings.FatiqueRecoveredPerPlanetCapture);
                     }
                     else {
                         FactionControl localcontrol = planetState.factionList.FirstOrDefault(x => x.faction == Faction.Locals);
@@ -197,7 +198,7 @@ namespace WarTech {
                             localcontrol = new FactionControl(0, Faction.Locals);
                             planetState.factionList.Add(localcontrol);
                         }
-                        system = Helper.ChangeOwner(system, localcontrol, Sim, true);
+                        system = Helper.ChangeOwner(system, localcontrol, Sim, true, false);
                         planetState.owner = Faction.Locals;
                     }
 
@@ -338,15 +339,15 @@ namespace WarTech {
                         enemies.Add(Faction.Locals);
                         enemies.Add(Faction.AuriganPirates);
                         foreach (War war in Fields.currentWars) {
-                            if (war.attackers.Contains(pair.Key)) {
-                                foreach (Faction faction in war.defenders) {
+                            if (war.attackers.ContainsKey(pair.Key)) {
+                                foreach (Faction faction in war.defenders.Keys) {
                                     if (!enemies.Contains(faction)) {
                                         enemies.Add(faction);
                                     }
                                 }
                             }
-                            else if (war.defenders.Contains(pair.Key)) {
-                                foreach (Faction faction in war.attackers) {
+                            else if (war.defenders.ContainsKey(pair.Key)) {
+                                foreach (Faction faction in war.attackers.Keys) {
                                     if (!enemies.Contains(faction)) {
                                         enemies.Add(faction);
                                     }
@@ -387,11 +388,30 @@ namespace WarTech {
             }
         }
 
-        public static StarSystem ChangeOwner(StarSystem system, FactionControl control, SimGameState Sim, bool battle) {
+        public static StarSystem ChangeOwner(StarSystem system, FactionControl control, SimGameState Sim, bool battle, bool lostWar) {
             try {
                 if (battle) {
                     Faction oldOwner = system.Owner;
                     Faction newOwner = control.faction;
+                    if (!lostWar) {
+                        War war = getWar(newOwner);
+                        if (war.attackers.ContainsKey(newOwner)) {
+                            if (war.attackers[newOwner].takenPlanets.ContainsKey(system.Name)) {
+                                war.attackers[newOwner].takenPlanets[system.Name] = system.Owner;
+                            }
+                            else {
+                                war.attackers[newOwner].takenPlanets.Add(system.Name, system.Owner);
+                            }
+                        }
+                        else {
+                            if (war.defenders[newOwner].takenPlanets.ContainsKey(system.Name)) {
+                                war.defenders[newOwner].takenPlanets[system.Name] = system.Owner;
+                            }
+                            else {
+                                war.defenders[newOwner].takenPlanets.Add(system.Name, system.Owner);
+                            }
+                        }
+                    }
                     TargetSystem target = null;
                     if (control.faction != Faction.Locals && Fields.availableTargets.Count > 0) {
                         target = Fields.availableTargets[newOwner].Find(x => x.system == system);
@@ -477,7 +497,7 @@ namespace WarTech {
         public static War getWar(Faction faction) {
             try {
                 foreach (War war in Fields.currentWars) {
-                    if (war.attackers.Contains(faction) || war.defenders.Contains(faction)) {
+                    if (war.attackers.ContainsKey(faction) || war.defenders.ContainsKey(faction)) {
                         return war;
                     }
                 }
@@ -632,7 +652,7 @@ namespace WarTech {
 
         public static string GetFactionName(Faction faction, DataManager manager) {
             try {
-                return FactionDef.GetFactionDefByEnum(manager, faction).Name;
+                return FactionDef.GetFactionDefByEnum(manager, faction).Name.Replace("the ", "").Replace("The ", "");
             }
             catch (Exception ex) {
                 Logger.LogError(ex);
@@ -642,7 +662,7 @@ namespace WarTech {
 
         public static string GetFactionShortName(Faction faction, DataManager manager) {
             try {
-                return FactionDef.GetFactionDefByEnum(manager, faction).ShortName;
+                return FactionDef.GetFactionDefByEnum(manager, faction).ShortName.Replace("the ", "").Replace("The ", "");
             }
             catch (Exception ex) {
                 Logger.LogError(ex);
@@ -654,7 +674,7 @@ namespace WarTech {
             try {
                 bool result = false;
                 foreach (War war in Fields.currentWars) {
-                    if (war.attackers.Contains(faction) || war.defenders.Contains(faction)) {
+                    if (war.attackers.ContainsKey(faction) || war.defenders.ContainsKey(faction)) {
                         result = true;
                         break;
                     }
