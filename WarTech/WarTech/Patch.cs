@@ -24,16 +24,15 @@ namespace WarTech {
         }
     }
 
+    [HarmonyBefore(new string[] { "de.morphyum.MercDeployments" })]
     [HarmonyPatch(typeof(SimGameState), "Rehydrate")]
     public static class SimGameState_Rehydrate_Patch {
         static void Postfix(SimGameState __instance, GameInstanceSave gameInstanceSave) {
             try {
                 foreach(Contract contract in __instance.GlobalContracts) {
-                   // string OverrideID = (string)AccessTools.Field(typeof(Contract), "OverrideID").GetValue(contract);
-                   // AccessTools.Field(typeof(Contract), "Override").SetValue(contract, contract.DataManager.ContractOverrides.Get(OverrideID).Copy());
                     contract.Override.contractDisplayStyle = ContractDisplayStyle.BaseCampaignStory;
                     int maxPriority = Mathf.FloorToInt(7 / __instance.Constants.Salvage.PrioritySalvageModifier);
-                    contract.Override.salvagePotential = Mathf.Min(maxPriority, Mathf.RoundToInt(contract.Override.salvagePotential * Fields.settings.priorityContactPayPercentage));
+                    contract.Override.salvagePotential = Mathf.Min(maxPriority, Mathf.RoundToInt(contract.SalvagePotential * Fields.settings.priorityContactPayPercentage));
                     contract.Override.negotiatedSalvage = 1f;
                 }
             }
