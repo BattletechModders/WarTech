@@ -190,7 +190,8 @@ namespace WarTech {
                     if (newowner.percentage >= Fields.settings.PercentageForControl) {
                         system = Helper.ChangeOwner(system, newowner, Sim, true, false);
                         planetState.owner = newowner.faction;
-                        Fields.WarFatique[newowner.faction] = Mathf.Max(0, Fields.WarFatique[newowner.faction] - Fields.settings.FatiqueRecoveredPerPlanetCapture);
+                        Fields.WarFatique[newowner.faction] = Mathf.Max(0, Fields.WarFatique[newowner.faction] - Fields.settings.FatiquePerPlanetCapture);
+                        Fields.WarFatique[ownerControl.faction] = Mathf.Min(100, Fields.WarFatique[newowner.faction] + Fields.settings.FatiquePerPlanetCapture);
                     }
                     else {
                         FactionControl localcontrol = planetState.factionList.FirstOrDefault(x => x.faction == Faction.Locals);

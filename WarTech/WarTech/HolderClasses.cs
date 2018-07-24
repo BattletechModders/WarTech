@@ -16,7 +16,7 @@ namespace WarTech {
         public float FatiquePerLostAttack = 0.5f;
         public float FatiqueLostPerMonth = 3f;
         public float FatiqueRecoveredPerDay = 0.5f;
-        public float FatiqueRecoveredPerPlanetCapture = 3f;
+        public float FatiquePerPlanetCapture = 3f;
         public string attackercolor = "#ee0000ff";
         public string defendercolor = "#00bb00ff";
         public string planetcolor = "#00ffffff";
