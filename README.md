@@ -24,7 +24,7 @@ Downloads can be found on [github](https://github.com/Morphyum/WarTech/releases)
 Setting | Type | Default | Description
 --- | --- | --- | ---
 AttackPercentagePerPlayerMission | int | default 10 | How much control a succefull player mission will grant the employee faction.
-excludedFactionNames | List<string>| default ["MercenaryReviewBoard","ComStar","Locals","AuriganPirates","NoFaction"] | Factions listed here will be excluded from the wars.
+excludedFactionNames | List<string>| default ["MercenaryReviewBoard", "ComStar", "Locals", "AuriganPirates", "NoFaction"] | Factions listed here will be excluded from the wars.
 PercentageForControl | int | default 30 | How much percentage of control is needed at minimum to control a planet.
 WeightOfNeighbours | int | default 1 | How important it is for Factions to conquer planets that have lots of own neighbours(prevents border gore)
 minMonthDuration | int | default 1 | The minimal Number of month a war goes before factions have achance to surrender.
