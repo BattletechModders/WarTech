@@ -29,7 +29,7 @@ namespace WarTech {
     public static class SimGameState_Rehydrate_Patch {
         static void Postfix(SimGameState __instance, GameInstanceSave gameInstanceSave) {
             try {
-                foreach(Contract contract in __instance.GlobalContracts) {
+                foreach (Contract contract in __instance.GlobalContracts) {
                     contract.Override.contractDisplayStyle = ContractDisplayStyle.BaseCampaignStory;
                     int maxPriority = Mathf.FloorToInt(7 / __instance.Constants.Salvage.PrioritySalvageModifier);
                     contract.Override.salvagePotential = Mathf.Min(maxPriority, Mathf.RoundToInt(contract.SalvagePotential * Fields.settings.priorityContactPayPercentage));
@@ -339,6 +339,7 @@ namespace WarTech {
                                             if (Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.ContainsKey(pair.Key)) {
                                                 color = Fields.settings.attackercolor;
                                                 Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " surrendered.");
+                                                Dictionary<Faction, int> returnedPlanetsCount = new Dictionary<Faction, int>();
                                                 foreach (KeyValuePair<string, Faction> taken in Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers[pair.Key].takenPlanets) {
                                                     if (war.defenders.ContainsKey(taken.Value)) {
                                                         StarSystem changedSystem = __instance.StarSystems.Find(x => x.Name.Equals(taken.Key));
@@ -350,14 +351,23 @@ namespace WarTech {
                                                         ownerControl.percentage += percentage;
                                                         changedSystem = Helper.ChangeOwner(changedSystem, ownerControl, __instance, true, true);
                                                         changedSystem = Helper.ChangeWarDescription(changedSystem, __instance);
-                                                        Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " returned " + "<color=" + Fields.settings.planetcolor + ">" + changedSystem.Name + "</color>" + " to " + "<color=" + Fields.settings.defendercolor + ">" + Helper.GetFactionName(taken.Value, __instance.DataManager) + "</color>");
+                                                        if (!returnedPlanetsCount.ContainsKey(taken.Value)) {
+                                                            returnedPlanetsCount.Add(taken.Value, 1);
+                                                        }
+                                                        else {
+                                                            returnedPlanetsCount[taken.Value]++;
+                                                        }
                                                     }
+                                                }
+                                                foreach (KeyValuePair<Faction, int> returned in returnedPlanetsCount) {
+                                                    Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " returned " + "<color=" + Fields.settings.planetcolor + ">" + returned.Value + "</color>" + " systems to " + "<color=" + Fields.settings.defendercolor + ">" + Helper.GetFactionName(returned.Key, __instance.DataManager) + "</color>");
                                                 }
                                                 Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Remove(pair.Key);
                                             }
                                             else {
                                                 color = Fields.settings.defendercolor;
                                                 Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " surrendered.");
+                                                Dictionary<Faction, int> returnedPlanetsCount = new Dictionary<Faction, int>();
                                                 foreach (KeyValuePair<string, Faction> taken in Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders[pair.Key].takenPlanets) {
                                                     if (war.attackers.ContainsKey(taken.Value)) {
                                                         StarSystem changedSystem = __instance.StarSystems.Find(x => x.Name.Equals(taken.Key));
@@ -369,17 +379,25 @@ namespace WarTech {
                                                         ownerControl.percentage += percentage;
                                                         changedSystem = Helper.ChangeOwner(changedSystem, ownerControl, __instance, true, true);
                                                         changedSystem = Helper.ChangeWarDescription(changedSystem, __instance);
-                                                        Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " returned " + "<color=" + Fields.settings.planetcolor + ">" + changedSystem.Name + "</color>" + " to " + "<color=" + Fields.settings.attackercolor + ">" + Helper.GetFactionName(taken.Value, __instance.DataManager) + "</color>");
+                                                        if (!returnedPlanetsCount.ContainsKey(taken.Value)) {
+                                                            returnedPlanetsCount.Add(taken.Value, 1);
+                                                        }
+                                                        else {
+                                                            returnedPlanetsCount[taken.Value]++;
+                                                        }
                                                     }
+                                                }
+                                                foreach (KeyValuePair<Faction, int> returned in returnedPlanetsCount) {
+                                                    Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + color + ">" + Helper.GetFactionName(pair.Key, __instance.DataManager) + "</color>" + " returned " + "<color=" + Fields.settings.planetcolor + ">" + returned.Value + "</color>" + " systems to " + "<color=" + Fields.settings.attackercolor + ">" + Helper.GetFactionName(returned.Key, __instance.DataManager) + "</color>");
                                                 }
                                                 Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders.Remove(pair.Key);
                                             }
 
                                             if (Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers.Count <= 0) {
                                                 Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<b>Attacking side lost the war.</b>");
-                                                foreach(KeyValuePair<Faction, WarProgression> defender in Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders) {
+                                                foreach (KeyValuePair<Faction, WarProgression> defender in Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders) {
                                                     int count = Fields.currentWars.Find(x => x.name.Equals(war.name)).defenders[defender.Key].takenPlanets.Count;
-                                                    Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + Fields.settings.defendercolor + ">" + Helper.GetFactionName(defender.Key, __instance.DataManager) + "</color>" + " took " + "<color=" + Fields.settings.planetcolor + ">" + count + "</color>"  + " systems in the war.");
+                                                    Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + Fields.settings.defendercolor + ">" + Helper.GetFactionName(defender.Key, __instance.DataManager) + "</color>" + " took " + "<color=" + Fields.settings.planetcolor + ">" + count + "</color>" + " systems in the war.");
                                                 }
                                                 if (!Fields.removeWars.Contains(war.name)) {
                                                     Fields.removeWars.Add(war.name);
@@ -389,7 +407,7 @@ namespace WarTech {
                                                 Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\n<b>Defending side lost the war.</b>");
                                                 foreach (KeyValuePair<Faction, WarProgression> attackers in Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers) {
                                                     int count = Fields.currentWars.Find(x => x.name.Equals(war.name)).attackers[attackers.Key].takenPlanets.Count;
-                                                    Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + Fields.settings.attackercolor + ">" + Helper.GetFactionName(attackers.Key, __instance.DataManager) + "</color>" + " took " + "<color=" + Fields.settings.planetcolor + ">" + count + "</color>" + "systems in the war.");
+                                                    Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("<color=" + Fields.settings.attackercolor + ">" + Helper.GetFactionName(attackers.Key, __instance.DataManager) + "</color>" + " took " + "<color=" + Fields.settings.planetcolor + ">" + count + "</color>" + " systems in the war.");
                                                 }
                                                 if (!Fields.removeWars.Contains(war.name)) {
                                                     Fields.removeWars.Add(war.name);
@@ -398,7 +416,7 @@ namespace WarTech {
                                         }
                                     }
                                     else {
-                                        Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("The War ended Undecided.");
+                                        Fields.currentWars.Find(x => x.name.Equals(war.name)).monthlyEvents.Add("\nThe War ended Undecided.");
                                         if (!Fields.removeWars.Contains(war.name)) {
                                             Fields.removeWars.Add(war.name);
                                         }
@@ -428,10 +446,8 @@ namespace WarTech {
                                 war.monthlyEvents.Add(Helper.GetFactionName(fac, __instance.DataManager) + " | Exhaustion: " + Fields.WarFatique[fac] + "%");
                             }
                         }
-                        for (int i = 0; i < war.monthlyEvents.Count; i++) {
-                            war.monthlyEvents[i] = war.monthlyEvents[i];
-                        }
-                        interruptQueue.QueueGenericPopup_NonImmediate(war.name, string.Join("\n", war.monthlyEvents.ToArray()) + "\n", true); war.monthlyEvents.Clear();
+                        interruptQueue.QueueGenericPopup_NonImmediate(war.name, string.Join("\n", war.monthlyEvents.ToArray()) + "\n", true);
+                        war.monthlyEvents.Clear();
                     }
                     Fields.thisMonthChanges = new Dictionary<string, string>();
                     foreach (string war in Fields.removeWars) {
