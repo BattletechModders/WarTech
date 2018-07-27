@@ -204,7 +204,7 @@ namespace WarTech {
                         }
                     }
                     StarSystem system2 = simGame.StarSystems.Find(x => x.Name.Equals(system.Name));
-                    system2 = Helper.ChangeOwner(system, factionControl, simGame, battle, false);
+                    system2 = Helper.ChangeOwner(system2, factionControl, simGame, battle, false);
                     system2 = Helper.ChangeWarDescription(system2, simGame);
                 }
 
@@ -287,6 +287,10 @@ namespace WarTech {
                         List<Faction> fac = null;
                         if (Fields.neighbourFactions.ContainsKey(pair.Key)) {
                             fac = Fields.neighbourFactions[pair.Key];
+                        }
+                        List<Faction> list = Helper.GetFactionsByString(Fields.settings.excludedFactionNames);
+                        if (fac != null && list != null && list.Count > 0) {
+                            fac = fac.Except(list).ToList();
                         }
                         if (!Helper.IsAtWar(pair.Key) && !Helper.IsExcluded(pair.Key) && fac != null && fac.Count > 0) {
                             if (rand.Next(0, 101) > Fields.WarFatique[pair.Key]) {

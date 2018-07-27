@@ -1,6 +1,7 @@
 ﻿using BattleTech;
 using BattleTech.Data;
 using BattleTech.Framework;
+using Harmony;
 using HBS.Collections;
 using Newtonsoft.Json;
 using System;
@@ -396,20 +397,22 @@ namespace WarTech {
                     Faction newOwner = control.faction;
                     if (!lostWar) {
                         War war = getWar(newOwner);
-                        if (war.attackers.ContainsKey(newOwner)) {
-                            if (war.attackers[newOwner].takenPlanets.ContainsKey(system.Name)) {
-                                war.attackers[newOwner].takenPlanets[system.Name] = system.Owner;
+                        if (war != null) {
+                            if (war.attackers.ContainsKey(newOwner)) {
+                                if (war.attackers[newOwner].takenPlanets.ContainsKey(system.Name)) {
+                                    war.attackers[newOwner].takenPlanets[system.Name] = system.Owner;
+                                }
+                                else {
+                                    war.attackers[newOwner].takenPlanets.Add(system.Name, system.Owner);
+                                }
                             }
                             else {
-                                war.attackers[newOwner].takenPlanets.Add(system.Name, system.Owner);
-                            }
-                        }
-                        else {
-                            if (war.defenders[newOwner].takenPlanets.ContainsKey(system.Name)) {
-                                war.defenders[newOwner].takenPlanets[system.Name] = system.Owner;
-                            }
-                            else {
-                                war.defenders[newOwner].takenPlanets.Add(system.Name, system.Owner);
+                                if (war.defenders[newOwner].takenPlanets.ContainsKey(system.Name)) {
+                                    war.defenders[newOwner].takenPlanets[system.Name] = system.Owner;
+                                }
+                                else {
+                                    war.defenders[newOwner].takenPlanets.Add(system.Name, system.Owner);
+                                }
                             }
                         }
                     }
@@ -598,6 +601,63 @@ namespace WarTech {
                     }
                 }
                 return targets;
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+                return null;
+            }
+        }
+
+        public static List<Faction> GetFactionsByString(List<string> names) {
+            try {
+                List<Faction> factions = new List<Faction>();
+                foreach (string name in names) {
+                    switch (name) {
+                        case "AuriganRestoration":
+                            factions.Add(Faction.AuriganRestoration);
+                            break;
+                        case "Betrayers":
+                            factions.Add(Faction.Betrayers);
+                            break;
+                        case "AuriganDirectorate":
+                            factions.Add(Faction.AuriganDirectorate); break;
+                        case "AuriganMercenaries":
+                            factions.Add(Faction.AuriganMercenaries); break;
+                        case "AuriganPirates":
+                            factions.Add(Faction.AuriganPirates); break;
+                        case "ComStar":
+                            factions.Add(Faction.ComStar); break;
+                        case "Davion":
+                            factions.Add(Faction.Davion); break;
+                        case "Kurita":
+                            factions.Add(Faction.Kurita); break;
+                        case "Liao":
+                            factions.Add(Faction.Liao); break;
+                        case "Locals":
+                            factions.Add(Faction.Locals); break;
+                        case "MagistracyCentrella":
+                            factions.Add(Faction.MagistracyCentrella); break;
+                        case "MagistracyOfCanopus":
+                            factions.Add(Faction.MagistracyOfCanopus); break;
+                        case "MajestyMetals":
+                            factions.Add(Faction.MajestyMetals); break;
+                        case "Marik":
+                            factions.Add(Faction.Marik); break;
+                        case "MercenaryReviewBoard":
+                            factions.Add(Faction.MercenaryReviewBoard); break;
+                        case "Nautilus":
+                            factions.Add(Faction.Nautilus); break;
+                        case "Steiner":
+                            factions.Add(Faction.Steiner); break;
+                        case "TaurianConcordat":
+                            factions.Add(Faction.TaurianConcordat); break;
+                        case "NoFaction":
+                            factions.Add(Faction.NoFaction); break;
+                        default:
+                            break;
+                    }
+                }
+                return factions;
             }
             catch (Exception ex) {
                 Logger.LogError(ex);
