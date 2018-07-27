@@ -482,9 +482,9 @@ namespace WarTech {
         public static bool IsBorder(StarSystem system, SimGameState Sim) {
             try {
                 bool result = false;
-                if (Sim.Starmap != null && !IsExcluded(system.Owner)) {
+                if (Sim.Starmap != null && !IsExcluded(system.Owner) ) {
                     foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                        if (system.Owner != neigbourSystem.Owner && !IsExcluded(neigbourSystem.Owner)) {
+                        if (system.Owner != neigbourSystem.Owner && !IsExcluded(neigbourSystem.Owner)&& Fields.currentEnemies[system.Owner].Contains(neigbourSystem.Owner)) {
                             result = true;
                             break;
                         }
