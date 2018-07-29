@@ -453,6 +453,12 @@ namespace WarTech {
                 }
                 ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractEmployers", new object[] { GetEmployees(system, Sim) });
                 ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractTargets", new object[] { GetTargets(system, Sim) });
+
+                if(system.Owner == Faction.NoFaction) {
+                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_UseMaxContractOverride", new object[] { true });
+                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_MaxContractOverride", new object[] { 0 });
+                    ReflectionHelper.InvokePrivateMethode(system, "set_CurMaxContracts", new object[] { 0 });
+                }
                 return system;
             }
             catch (Exception ex) {
@@ -482,11 +488,13 @@ namespace WarTech {
         public static bool IsBorder(StarSystem system, SimGameState Sim) {
             try {
                 bool result = false;
-                if (Sim.Starmap != null && !IsExcluded(system.Owner) ) {
+                if (Sim.Starmap != null && !IsExcluded(system.Owner) && Fields.currentEnemies != null) {
                     foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                        if (system.Owner != neigbourSystem.Owner && !IsExcluded(neigbourSystem.Owner)&& Fields.currentEnemies[system.Owner].Contains(neigbourSystem.Owner)) {
-                            result = true;
-                            break;
+                        if (Fields.currentEnemies.ContainsKey(system.Owner)) {
+                            if (system.Owner != neigbourSystem.Owner && !IsExcluded(neigbourSystem.Owner) && Fields.currentEnemies[system.Owner].Contains(neigbourSystem.Owner)) {
+                                result = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -559,7 +567,9 @@ namespace WarTech {
         public static List<Faction> GetEmployees(StarSystem system, SimGameState Sim) {
             try {
                 List<Faction> employees = new List<Faction>();
-
+                if (system.Owner == Faction.NoFaction) {
+                    return employees;
+                }
                 if (!IsExcluded(system.Owner) && Sim.Starmap != null) {
                     employees.Add(Faction.Locals);
                     employees.Add(system.Owner);
@@ -568,6 +578,7 @@ namespace WarTech {
                             employees.Add(neigbourSystem.Owner);
                         }
                     }
+
                 }
                 else {
                     foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
@@ -585,13 +596,18 @@ namespace WarTech {
         public static List<Faction> GetTargets(StarSystem system, SimGameState Sim) {
             try {
                 List<Faction> targets = new List<Faction>();
+                if (system.Owner == Faction.NoFaction) {
+                    return targets;
+                }
                 if (!IsExcluded(system.Owner) && Sim.Starmap != null) {
-                    targets.Add(Faction.Locals);
-                    targets.Add(Faction.AuriganPirates);
-                    targets.Add(system.Owner);
-                    foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
-                        if (system.Owner != neigbourSystem.Owner && !targets.Contains(neigbourSystem.Owner) && !IsExcluded(neigbourSystem.Owner)) {
-                            targets.Add(neigbourSystem.Owner);
+                    if (system.Owner != Faction.NoFaction) {
+                        targets.Add(Faction.Locals);
+                        targets.Add(Faction.AuriganPirates);
+                        targets.Add(system.Owner);
+                        foreach (StarSystem neigbourSystem in Sim.Starmap.GetAvailableNeighborSystem(system)) {
+                            if (system.Owner != neigbourSystem.Owner && !targets.Contains(neigbourSystem.Owner) && !IsExcluded(neigbourSystem.Owner)) {
+                                targets.Add(neigbourSystem.Owner);
+                            }
                         }
                     }
                 }

@@ -291,6 +291,9 @@ namespace WarTech {
                         List<Faction> list = Helper.GetFactionsByString(Fields.settings.excludedFactionNames);
                         if (fac != null && list != null && list.Count > 0) {
                             fac = fac.Except(list).ToList();
+                            if(pair.Value.Allies.Count() > 0) {
+                                fac = fac.Except(pair.Value.Allies).ToList();
+                            }
                         }
                         if (!Helper.IsAtWar(pair.Key) && !Helper.IsExcluded(pair.Key) && fac != null && fac.Count > 0) {
                             if (rand.Next(0, 101) > Fields.WarFatique[pair.Key]) {

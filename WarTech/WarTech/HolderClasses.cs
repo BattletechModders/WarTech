@@ -20,6 +20,7 @@ namespace WarTech {
         public string attackercolor = "#ee0000ff";
         public string defendercolor = "#00bb00ff";
         public string planetcolor = "#00ffffff";
+        public bool usePermaAllies = false;
         public bool debug = false;
     }
 
