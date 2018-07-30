@@ -179,6 +179,21 @@ namespace WarTech {
 
         static void Postfix(SimGameState simGame) {
             try {
+                if (Fields.Allies == null) {
+                    //first init
+                    Fields.Allies = new Dictionary<Faction, List<Faction>>();
+                    foreach (KeyValuePair<Faction,FactionDef> faction in simGame.FactionsDict) {
+                        if (!Helper.IsExcluded(faction.Key)) {
+                            Fields.Allies.Add(faction.Key, new List<Faction>());
+                            foreach(Faction ally in faction.Value.Allies) {
+                                if (!Helper.IsExcluded(ally)) {
+                                    Fields.Allies[faction.Key].Add(ally);
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (Fields.stateOfWar == null) {
                     //first init
                     Fields.stateOfWar = new List<PlanetControlState>();
@@ -256,9 +271,6 @@ namespace WarTech {
                             }
                         }
                     }
-                    else if (!Helper.IsExcluded(pair.Key) && Fields.WarFatique[pair.Key] > 0) {
-                        Fields.WarFatique[pair.Key] -= Fields.settings.FatiqueRecoveredPerDay;
-                    }
                 }
 
 
@@ -271,10 +283,10 @@ namespace WarTech {
                             War war = Helper.getWar(changedSystem.Owner);
                             if (war != null) {
                                 if (war.attackers.ContainsKey(changedSystem.Owner)) {
-                                    war.monthlyEvents.Add("<color=" + Fields.settings.attackercolor + ">" + Helper.GetFactionName(changedSystem.Owner, __instance.DataManager) + "</color>" + " took " + "<color=" + Fields.settings.planetcolor + ">" + changes.Key + "</color>" + " from " + "<color=" + Fields.settings.defendercolor + ">" + changes.Value + "</color>" + ".");
+                                    war.monthlyEvents.Add("<color=" + Fields.settings.attackercolor + ">" + Helper.GetFactionName(changedSystem.Owner, __instance.DataManager) + "</color>" + " took " + "<color=" + Fields.settings.planetcolor + ">" + changes.Key + "</color>" + " from " + "<color=" + Fields.settings.defendercolor + ">" + changes.Value + "</color>");
                                 }
                                 else {
-                                    war.monthlyEvents.Add("<color=" + Fields.settings.defendercolor + ">" + Helper.GetFactionName(changedSystem.Owner, __instance.DataManager) + "</color>" + " took " + "<color=" + Fields.settings.planetcolor + ">" + changes.Key + "</color>" + " from " + "<color=" + Fields.settings.attackercolor + ">" + changes.Value + "</color>" + ".");
+                                    war.monthlyEvents.Add("<color=" + Fields.settings.defendercolor + ">" + Helper.GetFactionName(changedSystem.Owner, __instance.DataManager) + "</color>" + " took " + "<color=" + Fields.settings.planetcolor + ">" + changes.Key + "</color>" + " from " + "<color=" + Fields.settings.attackercolor + ">" + changes.Value + "</color>");
                                 }
                             }
                         }
@@ -284,6 +296,9 @@ namespace WarTech {
                     }
                     Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)AccessTools.Field(typeof(SimGameState), "factions").GetValue(__instance);
                     foreach (KeyValuePair<Faction, FactionDef> pair in factions) {
+                        if (Helper.IsExcluded(pair.Key)) {
+                            continue;
+                        }
                         List<Faction> fac = null;
                         if (Fields.neighbourFactions.ContainsKey(pair.Key)) {
                             fac = Fields.neighbourFactions[pair.Key];
@@ -291,8 +306,8 @@ namespace WarTech {
                         List<Faction> list = Helper.GetFactionsByString(Fields.settings.excludedFactionNames);
                         if (fac != null && list != null && list.Count > 0) {
                             fac = fac.Except(list).ToList();
-                            if(pair.Value.Allies.Count() > 0) {
-                                fac = fac.Except(pair.Value.Allies).ToList();
+                            if(Fields.Allies[pair.Key].Count() > 0) {
+                                fac = fac.Except(Fields.Allies[pair.Key]).ToList();
                             }
                         }
                         if (!Helper.IsAtWar(pair.Key) && !Helper.IsExcluded(pair.Key) && fac != null && fac.Count > 0) {
@@ -330,6 +345,9 @@ namespace WarTech {
                                     }
                                     Fields.currentWars.Add(war);
                                 }
+                            } else {
+                                Fields.WarFatique[pair.Key] = Mathf.Max(0, Fields.WarFatique[pair.Key] -= Fields.settings.FatiqueRecoveredPerMonth);
+                                Helper.Diplomacy(pair.Key, ref __instance, rand);
                             }
                         }
                         else if (Helper.IsAtWar(pair.Key)) {
@@ -446,16 +464,20 @@ namespace WarTech {
                         if (!Fields.removeWars.Contains(war.name)) {
                             war.monthlyEvents.Add("<color=" + Fields.settings.attackercolor + ">" + "\nAttackers:" + "</color>");
                             foreach (Faction fac in war.attackers.Keys) {
-                                war.monthlyEvents.Add(Helper.GetFactionName(fac, __instance.DataManager) + " | Exhaustion: " + Fields.WarFatique[fac] + "%");
+                                war.monthlyEvents.Add(Helper.GetFactionName(fac, __instance.DataManager) + " | Exhaustion: " + Math.Round(Fields.WarFatique[fac],1).ToString("F1") + "%");
                             }
                             war.monthlyEvents.Add("<color=" + Fields.settings.defendercolor + ">" + "\nDefenders:" + "</color>");
                             foreach (Faction fac in war.defenders.Keys) {
-                                war.monthlyEvents.Add(Helper.GetFactionName(fac, __instance.DataManager) + " | Exhaustion: " + Fields.WarFatique[fac] + "%");
+                                war.monthlyEvents.Add(Helper.GetFactionName(fac, __instance.DataManager) + " | Exhaustion: " + Math.Round(Fields.WarFatique[fac], 1).ToString("F1") + "%");
                             }
                         }
                         interruptQueue.QueueGenericPopup_NonImmediate(war.name, string.Join("\n", war.monthlyEvents.ToArray()) + "\n", true);
                         war.monthlyEvents.Clear();
                     }
+                    if (Fields.DiplomacyLog.Count > 0) {
+                        interruptQueue.QueueGenericPopup_NonImmediate("Diplomacy", string.Join("\n", Fields.DiplomacyLog.ToArray()), true);
+                    }
+                    Fields.DiplomacyLog.Clear();
                     Fields.thisMonthChanges = new Dictionary<string, string>();
                     foreach (string war in Fields.removeWars) {
                         Fields.currentWars.Remove(Fields.currentWars.Find(x => x.name.Equals(war)));

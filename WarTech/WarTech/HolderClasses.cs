@@ -13,14 +13,15 @@ namespace WarTech {
         public int InlandPlanetDifficulty = 0;
         public int BorderPlanetDifficulty = 2;
         public float priorityContactPayPercentage = 2f;
-        public float FatiquePerLostAttack = 0.5f;
+        public float FatiquePerLostAttack = 0.3f;
         public float FatiqueLostPerMonth = 3f;
-        public float FatiqueRecoveredPerDay = 0.5f;
-        public float FatiquePerPlanetCapture = 3f;
+        public float FatiqueRecoveredPerMonth = 3f;
+        public float FatiquePerPlanetCapture = 1.5f;
         public string attackercolor = "#ee0000ff";
         public string defendercolor = "#00bb00ff";
+        public string neutralcolor = "#42f4a7ff";
         public string planetcolor = "#00ffffff";
-        public bool usePermaAllies = false;
+        public float BaseAllyChance = 50;
         public bool debug = false;
     }
 
@@ -33,9 +34,12 @@ namespace WarTech {
         public static Dictionary<Faction, List<TargetSystem>> availableTargets = new Dictionary<Faction, List<TargetSystem>>();
         public static bool warmission = false;
         public static Dictionary<Faction, float> WarFatique = null;
+        public static Dictionary<Faction, List<Faction>> Allies = null;
         public static List<War> currentWars = new List<War>();
         public static List<string> removeWars = new List<string>();
         public static Dictionary<Faction, List<Faction>> neighbourFactions = new Dictionary<Faction, List<Faction>>();
+        public static Dictionary<string,string> FluffDescriptions = new Dictionary<string, string>();
+        public static List<string> DiplomacyLog = new List<string>();
     }
 
     public class War {

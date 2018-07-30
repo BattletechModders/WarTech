@@ -13,19 +13,21 @@ using UnityEngine;
 namespace WarTech {
 
     public class SaveFields {
+        public Dictionary<Faction, List<Faction>> Allies = null;
         public Dictionary<Faction, float> WarFatique = new Dictionary<Faction, float>();
         public List<War> currentWars = new List<War>();
         public bool warmission = false;
         public List<PlanetControlState> stateOfWar = null;
         public Dictionary<string, string> thisMonthChanges = new Dictionary<string, string>();
         public List<FactionResources> factionResources = null;
-        public SaveFields(List<PlanetControlState> stateOfWar, Dictionary<string, string> thisMonthChanges, List<FactionResources> factionResources, bool warmission, Dictionary<Faction, float> WarFatique, List<War> currentWars) {
+        public SaveFields(List<PlanetControlState> stateOfWar, Dictionary<string, string> thisMonthChanges, List<FactionResources> factionResources, bool warmission, Dictionary<Faction, float> WarFatique, List<War> currentWars, Dictionary<Faction, List<Faction>> Allies) {
             this.stateOfWar = stateOfWar;
             this.thisMonthChanges = thisMonthChanges;
             this.factionResources = factionResources;
             this.warmission = warmission;
             this.currentWars = currentWars;
             this.WarFatique = WarFatique;
+            this.Allies = Allies;
         }
     }
 
@@ -175,6 +177,94 @@ namespace WarTech {
             }
         }
 
+        public static void Diplomacy(Faction diplomat, ref SimGameState Sim, System.Random rand) {
+            try {
+                if (rand.Next(0, 2) == 1) {
+                    Settle(diplomat, ref Sim);
+                }
+                NegotiateAllies(diplomat, Sim, rand);
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+            }
+        }
+
+        public static void NegotiateAllies(Faction diplomat, SimGameState Sim, System.Random rand) {
+            try {
+                foreach (KeyValuePair<Faction, FactionDef> faction in Sim.FactionsDict) {
+                    if (IsExcluded(faction.Key) || diplomat == faction.Key || IsAtWar(faction.Key)) {
+                        continue;
+                    }
+                    if (!Fields.Allies[diplomat].Contains(faction.Key)) {
+                        int divider = Fields.Allies[diplomat].Count + 1;
+                        if (rand.Next(1, 101) <= Fields.settings.BaseAllyChance / divider) {
+                            Fields.Allies[diplomat].Add(faction.Key);
+                            Fields.Allies[faction.Key].Add(diplomat);
+                            Fields.DiplomacyLog.Add("<color=" + Fields.settings.neutralcolor + ">" + GetFactionName(diplomat, Sim.DataManager) + "</color>" + " <color=" + Fields.settings.defendercolor + ">" + " signed</color>" + " a non-aggression pact with " + "<color=" + Fields.settings.neutralcolor + ">" + GetFactionName(faction.Key, Sim.DataManager) + "</color>");
+                        }
+                    }
+                    else if (Fields.Allies[diplomat].Contains(faction.Key)) {
+                        int divider = Fields.Allies[diplomat].Count + 1;
+                        if (rand.Next(1, 101) >= Fields.settings.BaseAllyChance / divider) {
+                            Fields.Allies[diplomat].Remove(faction.Key);
+                            Fields.Allies[faction.Key].Remove(diplomat);
+                            Fields.DiplomacyLog.Add("<color=" + Fields.settings.neutralcolor + ">" + GetFactionName(diplomat, Sim.DataManager) + "</color>" + " <color=" + Fields.settings.attackercolor + ">" + " annuled</color>" + " the non-aggression pact with " + "<color=" + Fields.settings.neutralcolor + ">" + GetFactionName(faction.Key, Sim.DataManager) + "</color>");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+            }
+        }
+
+        public static void Settle(Faction diplomat, ref SimGameState Sim) {
+            try {
+                List<StarSystem> diplomatSystems = new List<StarSystem>();
+                foreach (StarSystem system in Sim.StarSystems) {
+                    if (system.Owner == diplomat) {
+                        diplomatSystems.Add(system);
+                    }
+                }
+                diplomatSystems.Shuffle();
+                bool foundSettlement = false;
+                foreach (StarSystem system in diplomatSystems) {
+                    foreach (StarSystem system2 in Sim.Starmap.GetAvailableNeighborSystem(system)) {
+                        Faction oldOwner = system2.Owner;
+                        if (oldOwner == Faction.Locals || oldOwner == Faction.NoFaction) {
+                            StarSystem changedSystem = Sim.StarSystems.Find(x => x.Name.Equals(system2.Name));
+                            PlanetControlState planetState = Fields.stateOfWar.FirstOrDefault(x => x.system.Equals(changedSystem.Name));
+                            FactionControl oldControl = planetState.factionList.FirstOrDefault(x => x.faction == oldOwner);
+                            int percentage = oldControl.percentage;
+                            oldControl.percentage = 0;
+                            FactionControl ownerControl = planetState.factionList.FirstOrDefault(x => x.faction == diplomat);
+                            if (ownerControl == null) {
+                                ownerControl = new FactionControl(0, diplomat);
+                                planetState.factionList.Add(ownerControl);
+                            }
+                            ownerControl.percentage += percentage;
+                            changedSystem = Helper.ChangeOwner(changedSystem, ownerControl, Sim, true, false);
+                            changedSystem = Helper.ChangeWarDescription(changedSystem, Sim);
+                            if (oldOwner == Faction.Locals) {
+                                Fields.DiplomacyLog.Add("<color=" + Fields.settings.defendercolor + ">" + GetFactionName(diplomat, Sim.DataManager) + "</color>" + " integrated " + "<color=" + Fields.settings.planetcolor + ">" + changedSystem.Name + "</color>" + " into their realm.");
+                            }
+                            else if (oldOwner == Faction.NoFaction) {
+                                Fields.DiplomacyLog.Add("<color=" + Fields.settings.defendercolor + ">" + GetFactionName(diplomat, Sim.DataManager) + "</color>" + " colonized " + "<color=" + Fields.settings.planetcolor + ">" + changedSystem.Name + "</color>" + ".");
+                            }
+                            foundSettlement = true;
+                            break;
+                        }
+                    }
+                    if (foundSettlement) {
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex) {
+                Logger.LogError(ex);
+            }
+        }
+
         public static StarSystem EvaluateOwnerChange(FactionControl ownerControl, PlanetControlState planetState, StarSystem system, SimGameState Sim) {
             try {
                 FactionControl newowner = null;
@@ -192,7 +282,7 @@ namespace WarTech {
                         system = Helper.ChangeOwner(system, newowner, Sim, true, false);
                         planetState.owner = newowner.faction;
                         Fields.WarFatique[newowner.faction] = Mathf.Max(0, Fields.WarFatique[newowner.faction] - Fields.settings.FatiquePerPlanetCapture);
-                        Fields.WarFatique[ownerControl.faction] = Mathf.Min(100, Fields.WarFatique[newowner.faction] + Fields.settings.FatiquePerPlanetCapture);
+                        Fields.WarFatique[ownerControl.faction] = Mathf.Min(100, Fields.WarFatique[ownerControl.faction] + Fields.settings.FatiquePerPlanetCapture);
                     }
                     else {
                         FactionControl localcontrol = planetState.factionList.FirstOrDefault(x => x.faction == Faction.Locals);
@@ -233,8 +323,16 @@ namespace WarTech {
                 foreach (StarSystem system in Sim.StarSystems) {
                     FactionResources resources = Fields.factionResources.Find(x => x.faction == system.Owner);
                     if (resources != null && !IsExcluded(resources.faction)) {
-                        resources.offence += GetOffenceValue(system);
-                        resources.defence += GetDefenceValue(system);
+                        resources.offence += Mathf.RoundToInt(GetOffenceValue(system) * (1 - (Fields.WarFatique[system.Owner] / 100)));
+                        resources.defence += Mathf.RoundToInt(GetDefenceValue(system) * (1 - (Fields.WarFatique[system.Owner] / 100)));
+                    }
+                }
+                if (Fields.settings.debug) {
+                    foreach (KeyValuePair<Faction, FactionDef> pair in Sim.FactionsDict) {
+                        if (!IsExcluded(pair.Key)) {
+                            FactionResources resources = Fields.factionResources.Find(x => x.faction == pair.Key);
+                            Logger.LogMonthlyReport(Helper.GetFactionName(pair.Key, Sim.DataManager) + " Exhaustion:" + Fields.WarFatique[pair.Key] + " Attack:" + resources.offence + " Defence:" + resources.defence);
+                        }
                     }
                 }
             }
@@ -454,7 +552,7 @@ namespace WarTech {
                 ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractEmployers", new object[] { GetEmployees(system, Sim) });
                 ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractTargets", new object[] { GetTargets(system, Sim) });
 
-                if(system.Owner == Faction.NoFaction) {
+                if (system.Owner == Faction.NoFaction) {
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_UseMaxContractOverride", new object[] { true });
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_MaxContractOverride", new object[] { 0 });
                     ReflectionHelper.InvokePrivateMethode(system, "set_CurMaxContracts", new object[] { 0 });
@@ -469,14 +567,23 @@ namespace WarTech {
 
         public static StarSystem ChangeWarDescription(StarSystem system, SimGameState Sim) {
             try {
-                List<string> factionList = new List<string>();
-                factionList.Add("Current Control:");
-                foreach (FactionControl fc in Fields.stateOfWar.Find(x => x.system.Equals(system.Name)).factionList.OrderByDescending(x => x.percentage)) {
-                    if (fc.percentage != 0) {
-                        factionList.Add(Helper.GetFactionName(fc.faction, Sim.DataManager) + ": " + fc.percentage + "%");
+                if (IsBorder(system, Sim)) {
+                    List<string> factionList = new List<string>();
+                    factionList.Add("Current Control:");
+                    foreach (FactionControl fc in Fields.stateOfWar.Find(x => x.system.Equals(system.Name)).factionList.OrderByDescending(x => x.percentage)) {
+                        if (fc.percentage != 0) {
+                            factionList.Add(Helper.GetFactionName(fc.faction, Sim.DataManager) + ": " + fc.percentage + "%");
+                        }
                     }
+                    if (!Fields.FluffDescriptions.ContainsKey(system.Name)) {
+                        Fields.FluffDescriptions.Add(system.Name, system.Def.Description.Details);
+                    }
+                    ReflectionHelper.InvokePrivateMethode(system.Def.Description, "set_Details", new object[] { string.Join("\n", factionList.ToArray()) });
                 }
-                ReflectionHelper.InvokePrivateMethode(system.Def.Description, "set_Details", new object[] { string.Join("\n", factionList.ToArray()) });
+                else if (Fields.FluffDescriptions.ContainsKey(system.Name)) {
+                    ReflectionHelper.InvokePrivateMethode(system.Def.Description, "set_Details", new object[] { Fields.FluffDescriptions[system.Name] });
+                    Fields.FluffDescriptions.Remove(system.Name);
+                }
                 return system;
             }
             catch (Exception ex) {
@@ -771,7 +878,7 @@ namespace WarTech {
                 string filePath = baseDirectory + $"/ModSaves/WarTech/" + instanceGUID + "-" + unixTimestamp + ".json";
                 (new FileInfo(filePath)).Directory.Create();
                 using (StreamWriter writer = new StreamWriter(filePath, true)) {
-                    SaveFields fields = new SaveFields(Fields.stateOfWar, Fields.thisMonthChanges, Fields.factionResources, Fields.warmission, Fields.WarFatique, Fields.currentWars);
+                    SaveFields fields = new SaveFields(Fields.stateOfWar, Fields.thisMonthChanges, Fields.factionResources, Fields.warmission, Fields.WarFatique, Fields.currentWars, Fields.Allies);
                     string json = JsonConvert.SerializeObject(fields);
                     writer.Write(json);
                 }
@@ -796,6 +903,7 @@ namespace WarTech {
                         Fields.warmission = save.warmission;
                         Fields.WarFatique = save.WarFatique;
                         Fields.currentWars = save.currentWars;
+                        Fields.Allies = save.Allies;
                     }
                 }
             }
