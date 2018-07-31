@@ -15,7 +15,7 @@ namespace WarTech {
         public float priorityContactPayPercentage = 2f;
         public float FatiquePerLostAttack = 0.3f;
         public float FatiqueLostPerMonth = 3f;
-        public float FatiqueRecoveredPerMonth = 3f;
+        public float FatiqueRecoveredPerMonth = 5f;
         public float FatiquePerPlanetCapture = 1.5f;
         public string attackercolor = "#ee0000ff";
         public string defendercolor = "#00bb00ff";

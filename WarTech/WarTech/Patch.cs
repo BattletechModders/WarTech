@@ -351,7 +351,7 @@ namespace WarTech {
                             }
                         }
                         else if (Helper.IsAtWar(pair.Key)) {
-                            Fields.WarFatique[pair.Key] += Fields.settings.FatiqueLostPerMonth;
+                            Fields.WarFatique[pair.Key] = Mathf.Min(100, Fields.WarFatique[pair.Key] + Fields.settings.FatiqueLostPerMonth);
                             if (rand.Next(0, 101) < Fields.WarFatique[pair.Key]) {
                                 War war = Helper.getWar(pair.Key);
                                 if (war == null) {

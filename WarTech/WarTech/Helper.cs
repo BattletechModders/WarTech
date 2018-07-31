@@ -90,12 +90,12 @@ namespace WarTech {
                         int randomDefence = rand.Next(maxDefence) + 1;
                         if (randomAttack > randomDefence) {
                             if (Fields.WarFatique[initialTarget] < 100) {
-                                Fields.WarFatique[initialTarget] += Fields.settings.FatiquePerLostAttack;
+                                Fields.WarFatique[initialTarget]  = Mathf.Min(100, Fields.WarFatique[initialTarget] + Fields.settings.FatiquePerLostAttack);
                             }
                         }
                         else {
                             if (Fields.WarFatique[benefactor] < 100) {
-                                Fields.WarFatique[benefactor] += Fields.settings.FatiquePerLostAttack;
+                                Fields.WarFatique[benefactor] = Mathf.Min(100, Fields.WarFatique[benefactor] + Fields.settings.FatiquePerLostAttack);
                             }
                         }
                         percentageLeft = Mathf.Max(0, randomAttack - randomDefence);
@@ -110,7 +110,7 @@ namespace WarTech {
                     }
                     else {
                         if (Fields.WarFatique[initialTarget] < 100) {
-                            Fields.WarFatique[initialTarget] += Fields.settings.FatiquePerLostAttack;
+                            Fields.WarFatique[initialTarget] = Mathf.Min(100, Fields.WarFatique[initialTarget] + Fields.settings.FatiquePerLostAttack);
                         }
                         int attack = Mathf.Min(100 - attackerControl.percentage, Fields.factionResources.Find(x => x.faction == benefactor).offence);
                         percentageLeft = attack;
@@ -208,7 +208,7 @@ namespace WarTech {
                         if (rand.Next(1, 101) >= Fields.settings.BaseAllyChance / divider) {
                             Fields.Allies[diplomat].Remove(faction.Key);
                             Fields.Allies[faction.Key].Remove(diplomat);
-                            Fields.DiplomacyLog.Add("<color=" + Fields.settings.neutralcolor + ">" + GetFactionName(diplomat, Sim.DataManager) + "</color>" + " <color=" + Fields.settings.attackercolor + ">" + " annuled</color>" + " the non-aggression pact with " + "<color=" + Fields.settings.neutralcolor + ">" + GetFactionName(faction.Key, Sim.DataManager) + "</color>");
+                            Fields.DiplomacyLog.Add("<color=" + Fields.settings.neutralcolor + ">" + GetFactionName(diplomat, Sim.DataManager) + "</color>" + " <color=" + Fields.settings.attackercolor + ">" + " annulled</color>" + " the non-aggression pact with " + "<color=" + Fields.settings.neutralcolor + ">" + GetFactionName(faction.Key, Sim.DataManager) + "</color>");
                         }
                     }
                 }
