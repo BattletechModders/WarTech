@@ -90,7 +90,7 @@ namespace WarTech {
                         int randomDefence = rand.Next(maxDefence) + 1;
                         if (randomAttack > randomDefence) {
                             if (Fields.WarFatique[initialTarget] < 100) {
-                                Fields.WarFatique[initialTarget]  = Mathf.Min(100, Fields.WarFatique[initialTarget] + Fields.settings.FatiquePerLostAttack);
+                                Fields.WarFatique[initialTarget] = Mathf.Min(100, Fields.WarFatique[initialTarget] + Fields.settings.FatiquePerLostAttack);
                             }
                         }
                         else {
@@ -316,15 +316,16 @@ namespace WarTech {
                             resources.defence = 0;
                         }
                     }
-                    if (Fields.factionResources.Find(x => x.faction == Faction.Locals) == null) {
-                        Fields.factionResources.Add(new FactionResources(Faction.Locals, 0, 0));
-                    }
                 }
-                foreach (StarSystem system in Sim.StarSystems) {
-                    FactionResources resources = Fields.factionResources.Find(x => x.faction == system.Owner);
-                    if (resources != null && !IsExcluded(resources.faction)) {
-                        resources.offence += Mathf.RoundToInt(GetOffenceValue(system) * (1 - (Fields.WarFatique[system.Owner] / 100)));
-                        resources.defence += Mathf.RoundToInt(GetDefenceValue(system) * (1 - (Fields.WarFatique[system.Owner] / 100)));
+                if (Sim.Starmap != null) {
+                    foreach (StarSystem system in Sim.StarSystems) {
+                        FactionResources resources = Fields.factionResources.Find(x => x.faction == system.Owner);
+                        if (resources != null) {
+                            if (!IsExcluded(resources.faction)) {
+                                resources.offence += Mathf.RoundToInt(GetOffenceValue(system) * (1 - (Fields.WarFatique[system.Owner] / 100)));
+                                resources.defence += Mathf.RoundToInt(GetDefenceValue(system) * (1 - (Fields.WarFatique[system.Owner] / 100)));
+                            }
+                        }
                     }
                 }
                 if (Fields.settings.debug) {

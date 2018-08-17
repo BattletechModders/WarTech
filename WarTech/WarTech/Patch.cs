@@ -234,9 +234,6 @@ namespace WarTech {
                     }
                 }
                 Helper.RefreshTargets(simGame);
-                if (Fields.factionResources.Count == 0) {
-                    Helper.RefreshResources(simGame);
-                }
                 if (Fields.WarFatique == null || Fields.WarFatique.Count == 0) {
                     Fields.WarFatique = new Dictionary<Faction, float>();
                     Dictionary<Faction, FactionDef> factions = (Dictionary<Faction, FactionDef>)AccessTools.Field(typeof(SimGameState), "factions").GetValue(simGame);
@@ -244,6 +241,10 @@ namespace WarTech {
                         Fields.WarFatique.Add(pair.Key, 0);
                     }
                 }
+                if (Fields.factionResources.Count == 0) {
+                    Helper.RefreshResources(simGame);
+                }
+                
             }
             catch (Exception e) {
                 Logger.LogError(e);
