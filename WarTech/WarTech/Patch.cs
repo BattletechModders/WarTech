@@ -148,7 +148,7 @@ namespace WarTech {
         }
     }
 
-    [HarmonyPatch(typeof(GameInstanceSave))]
+    [HarmonyPatch(typeof(GameInstanceSave), MethodType.Constructor)]
     [HarmonyPatch(new Type[] { typeof(GameInstance), typeof(SaveReason) })]
     public static class GameInstanceSave_Constructor_Patch {
         static void Postfix(GameInstanceSave __instance, GameInstance gameInstance, SaveReason saveReason) {
