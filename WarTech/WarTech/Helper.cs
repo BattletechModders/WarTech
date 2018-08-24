@@ -791,43 +791,7 @@ namespace WarTech {
 
         public static string GetFactionTag(Faction faction) {
             try {
-                switch (faction) {
-                    case Faction.AuriganRestoration:
-                        return "planet_faction_restoration";
-                    case Faction.Betrayers:
-                        return "planet_faction_outworlds";
-                    case Faction.AuriganDirectorate:
-                        return "planet_faction_marian";
-                    case Faction.AuriganMercenaries:
-                        return "planet_faction_illyrian";
-                    case Faction.AuriganPirates:
-                        return "planet_faction_pirate";
-                    case Faction.Davion:
-                        return "planet_faction_davion";
-                    case Faction.Kurita:
-                        return "planet_faction_kurita";
-                    case Faction.Liao:
-                        return "planet_faction_liao";
-                    case Faction.MagistracyCentrella:
-                        return "planet_faction_oberon";
-                    case Faction.MagistracyOfCanopus:
-                        return "planet_faction_magistracy";
-                    case Faction.MajestyMetals:
-                        return "planet_faction_lothian";
-                    case Faction.Marik:
-                        return "planet_faction_marik";
-                    case Faction.Nautilus:
-                        return "planet_faction_circinus";
-                    case Faction.Steiner:
-                        return "planet_faction_steiner";
-                    case Faction.TaurianConcordat:
-                        return "planet_faction_taurian";
-                    case Faction.MercenaryReviewBoard:
-                        return "planet_faction_mrb";
-                    default:
-                        return "";
-
-                }
+                return "planet_faction_" + faction.ToString().ToLower();
             }
             catch (Exception ex) {
                 Logger.LogError(ex);
