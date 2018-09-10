@@ -10,8 +10,6 @@ namespace WarTech {
         public int WeightOfNeighbours = 1;
         public int minMonthDuration = 1;
         public int maxMonthDuration = -1;
-        public int InlandPlanetDifficulty = 0;
-        public int BorderPlanetDifficulty = 2;
         public float priorityContactPayPercentage = 2f;
         public float FatiquePerLostAttack = 0.3f;
         public float FatiqueLostPerMonth = 3f;

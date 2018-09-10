@@ -541,13 +541,11 @@ namespace WarTech {
                 }
                 if (IsBorder(system, Sim) && Sim.Starmap != null) {
                     system.Tags.Add("planet_other_battlefield");
-                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { Fields.settings.BorderPlanetDifficulty });
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_UseMaxContractOverride", new object[] { true });
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_MaxContractOverride", new object[] { Sim.Constants.Story.MaxContractsPerSystem + Sim.Constants.Story.MaxContractsPerSystem / 2 });
                 }
                 else {
                     system.Tags.Remove("planet_other_battlefield");
-                    ReflectionHelper.InvokePrivateMethode(system.Def, "set_Difficulty", new object[] { Fields.settings.InlandPlanetDifficulty });
                     ReflectionHelper.InvokePrivateMethode(system.Def, "set_UseMaxContractOverride", new object[] { false });
                 }
                 ReflectionHelper.InvokePrivateMethode(system.Def, "set_ContractEmployers", new object[] { GetEmployees(system, Sim) });
@@ -736,50 +734,7 @@ namespace WarTech {
             try {
                 List<Faction> factions = new List<Faction>();
                 foreach (string name in names) {
-                    switch (name) {
-                        case "AuriganRestoration":
-                            factions.Add(Faction.AuriganRestoration);
-                            break;
-                        case "Betrayers":
-                            factions.Add(Faction.Betrayers);
-                            break;
-                        case "AuriganDirectorate":
-                            factions.Add(Faction.AuriganDirectorate); break;
-                        case "AuriganMercenaries":
-                            factions.Add(Faction.AuriganMercenaries); break;
-                        case "AuriganPirates":
-                            factions.Add(Faction.AuriganPirates); break;
-                        case "ComStar":
-                            factions.Add(Faction.ComStar); break;
-                        case "Davion":
-                            factions.Add(Faction.Davion); break;
-                        case "Kurita":
-                            factions.Add(Faction.Kurita); break;
-                        case "Liao":
-                            factions.Add(Faction.Liao); break;
-                        case "Locals":
-                            factions.Add(Faction.Locals); break;
-                        case "MagistracyCentrella":
-                            factions.Add(Faction.MagistracyCentrella); break;
-                        case "MagistracyOfCanopus":
-                            factions.Add(Faction.MagistracyOfCanopus); break;
-                        case "MajestyMetals":
-                            factions.Add(Faction.MajestyMetals); break;
-                        case "Marik":
-                            factions.Add(Faction.Marik); break;
-                        case "MercenaryReviewBoard":
-                            factions.Add(Faction.MercenaryReviewBoard); break;
-                        case "Nautilus":
-                            factions.Add(Faction.Nautilus); break;
-                        case "Steiner":
-                            factions.Add(Faction.Steiner); break;
-                        case "TaurianConcordat":
-                            factions.Add(Faction.TaurianConcordat); break;
-                        case "NoFaction":
-                            factions.Add(Faction.NoFaction); break;
-                        default:
-                            break;
-                    }
+                    factions.Add((Faction)Enum.Parse(typeof(Faction), name, true));
                 }
                 return factions;
             }
